@@ -22,7 +22,7 @@ class TransformerEncoder(nn.Module):
     ):
         super().__init__()
 
-        self.attention = MultiHeadSelfAttention(num_heads, hidden_size, dropout=dropout)
+        self.attention = ConcatenatedSelfAttention(num_heads, hidden_size, dropout=dropout)
         self.attention_dropout = nn.Dropout(dropout)
         self.attention_norm = nn.LayerNorm(hidden_size)
 

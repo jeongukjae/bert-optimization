@@ -82,7 +82,7 @@ def test_shape_of_self_attention_output(batch_size: int, seq_len: int, input_siz
 )
 def test_shape_of_concatenated_self_attention_output(batch_size: int, seq_len: int, num_heads: int, hidden_size: int):
     """Check shape of ConcatenatedSelfAttention outputs"""
-    attention = ConcatenatedSelfAttention(hidden_size, hidden_size, 0.0)
+    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = torch.rand((batch_size, seq_len, hidden_size))
     attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
