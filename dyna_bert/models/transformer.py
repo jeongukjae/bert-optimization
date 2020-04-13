@@ -47,7 +47,7 @@ class TransformerEncoder(nn.Module):
 
 class MultiHeadSelfAttention(nn.Module):
     """
-    MultiHeadSelfAttention (MHA + Self Attention): https://arxiv.org/abs/1706.03762
+    Multi Head Self Attention (MHA + Self Attention): https://arxiv.org/abs/1706.03762
 
     Input Shape:
         qkv: (Batch Size, Sequence Length, Hidden Size)
@@ -92,6 +92,64 @@ class MultiHeadSelfAttention(nn.Module):
         attention_output = attention_output.view(-1, sequence_length, self.hidden_size)
 
         return self.output(attention_output)
+
+
+class SelfAttention(nn.Module):
+    """
+    Vanilla Self Attention
+
+    Input Shape:
+        qkv: (Batch Size, Sequence Length, Input Size)
+        attention_mask: (Batch Size, Sequence Length)
+
+    Output Shape:
+        attention_output: (Batch Size, Sequence Length, Hidden Size)
+    """
+
+    def __init__(self, input_size: int, hidden_size: int, dropout: float):
+        super().__init__()
+
+        self.qkv_linear = nn.Linear(input_size, hidden_size * 3)
+        self.dropout = nn.Dropout(dropout)
+        self.scaling_factor = hidden_size ** 0.5
+
+    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor):
+        query, key, value = self.qkv_linear(qkv).chunk(3, dim=-1)
+        query *= self.scaling_factor
+
+        scores = torch.matmul(query, key.transpose(1, 2))
+        scores = scores.masked_fill(attention_mask.unsqueeze(1), float("-inf"))
+        distributions = self.dropout(F.softmax(scores, -1))
+
+        return torch.matmul(distributions, value)
+
+
+class ConcatenatedSelfAttention(nn.Module):
+    """
+    Multi Head Self Attention using Single Head Self Attention
+
+    Input Shape:
+        qkv: (Batch Size, Sequence Length, Input Size)
+        attention_mask: (Batch Size, Sequence Length)
+
+    Output Shape:
+        attention_output: (Batch Size, Sequence Length, Hidden Size)
+    """
+
+    def __init__(self, num_heads: int, hidden_size: int, dropout: float):
+        super().__init__()
+        if hidden_size % num_heads != 0:
+            raise ValueError("Hidden size should be multiple of the # of attention heads")
+
+        self.heads = nn.ModuleList(
+            [SelfAttention(hidden_size, int(hidden_size / num_heads), dropout) for _ in range(num_heads)]
+        )
+        self.output = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor):
+        concatenated_head_outputs = torch.cat([head(qkv, attention_mask) for head in self.heads], dim=-1)
+        attention_output = self.output(concatenated_head_outputs)
+        return attention_output
 
 
 def _get_activation_function(activation: str) -> Callable[[torch.Tensor], torch.Tensor]:
