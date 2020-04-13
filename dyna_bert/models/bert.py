@@ -2,6 +2,7 @@ import json
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class BertConfig:
@@ -45,6 +46,23 @@ class BertConfig:
 
 
 class BertModel(nn.Module):
+    """
+    Base Bert Model: https://arxiv.org/abs/1810.04805
+
+    Input Shape:
+        input_ids: (Batch Size, Sequence Length)
+        token_type_ids:: (Batch Size, Sequence Length)
+        attention_mask:: (Batch Size, Sequence Length)
+
+    Output Shape:
+        sequence_output: (Batch Size, Sequence Length, Hidden Size)
+        pooled_output: (Batch Size, Hidden Size)
+        embeddings: (Batch Size, Sequence Length, Hidden Size)
+        hidden_states: (Num Layers, Batch Size, Sequence Length, Hidden Size)
+
+    hidden_states is a "num layers"-length list of tensor that has shape of (Batch Size, Sequence Length, Hidden Size)
+    """
+
     def __init__(self, config: BertConfig):
         super(BertModel, self).__init__()
         self.token_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
@@ -103,3 +121,48 @@ class BertModel(nn.Module):
             outputs += (hidden_states,)
 
         return outputs
+
+
+class BertMLMHead(nn.Module):
+    """
+    Masked LM Head used in Bert
+
+    encoder_output Shape:
+        pooled_output: (Batch Size, Sequence Length, Hidden Size)
+    Output Shape:
+        mlm_logit: (Batch Size, Sequence Length, Vocab Size)
+    """
+
+    def __init__(self, config: BertConfig):
+        super(BertMLMHead, self).__init__()
+
+        self.transform = nn.Linear(config.hidden_size, config.hidden_size)
+        self.transform_layer_norm = nn.LayerNorm(config.hidden_size)
+
+        self.output_layer = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.output_bias = nn.Parameter(torch.zeros(config.vocab_size))
+
+    def forward(self, encoder_output: torch.Tensor) -> torch.Tensor:
+        transformed = F.gelu(self.transform(encoder_output))
+        transformed = self.transform_layer_norm(transformed)
+
+        logits = self.output_layer(transformed)
+        return F.softmax(logits + self.output_bias, -1)
+
+
+class BertNSPHead(nn.Module):
+    """
+    NSP (Next Sentence Prediction) Head used in Bert
+
+    Input Shape:
+        pooled_output: (Batch Size, Hidden Size)
+    Output Shape:
+        nsp_logit: (Batch Size, 2)
+    """
+
+    def __init__(self, config: BertConfig):
+        super(BertNSPHead, self).__init__()
+        self.output_layer = nn.Linear(config.hidden_size, 2)
+
+    def forward(self, pooled_output: torch.Tensor) -> torch.Tensor:
+        return F.softmax(self.output_layer(pooled_output), dim=-1)
