@@ -93,6 +93,27 @@ def test_shape_of_concatenated_self_attention_output(batch_size: int, seq_len: i
 
 
 @pytest.mark.parametrize(
+    "batch_size, seq_len, hidden_size", [pytest.param(1, 3, 16), pytest.param(3, 12, 8)],
+)
+def test_shape_of_concatenated_self_attention_output_with_head_mask(batch_size: int, seq_len: int, hidden_size: int):
+    """Check shape of ConcatenatedSelfAttention outputs With Head Mask"""
+    num_heads = 4
+
+    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
+
+    sequence = torch.rand((batch_size, seq_len, hidden_size))
+    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    # Masking two heads
+    head_mask = torch.tensor([[1.0, 1.0, 0.0, 0.0]] * batch_size)
+
+    attention_output = attention(sequence, attention_mask, head_mask=head_mask)
+
+    assert attention_output.shape == (batch_size, seq_len, hidden_size)
+    # Last two heads output must be zeros
+    assert torch.all(attention_output[:, :, 2 * int(hidden_size / num_heads) :] == 0)
+
+
+@pytest.mark.parametrize(
     "batch_size, seq_len, num_heads, hidden_size", [pytest.param(1, 3, 8, 16), pytest.param(3, 12, 4, 8)],
 )
 def test_output_of_self_attention_and_multi_head_self_attention(
@@ -158,7 +179,7 @@ def test_output_of_concatenated_attention_and_multi_head_self_attention(
     single_output = attention_concat(sequence, attention_mask)
 
     assert multi_output.shape == single_output.shape
-    assert torch.allclose(single_output, multi_output)
+    assert torch.allclose(single_output, multi_output, rtol=1e-3)
 
 
 def _convert_attn_weight(

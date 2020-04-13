@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 import torch
 from torch import nn
@@ -70,6 +71,7 @@ class BertModel(nn.Module):
         input_ids: (Batch Size, Sequence Length)
         token_type_ids:: (Batch Size, Sequence Length)
         attention_mask:: (Batch Size, Sequence Length)
+        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         sequence_output: (Batch Size, Sequence Length, Hidden Size)
@@ -108,7 +110,11 @@ class BertModel(nn.Module):
         self.output_embedding = config.output_embedding
 
     def forward(
-        self, input_ids: torch.Tensor, token_type_ids: torch.Tensor, attention_mask: torch.Tensor,
+        self,
+        input_ids: torch.Tensor,
+        token_type_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        head_mask: Optional[torch.Tensor] = None,
     ):
         seq_length = input_ids.size(1)
         position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
@@ -124,7 +130,7 @@ class BertModel(nn.Module):
         hidden_state = embeddings
         hidden_states = []
         for encoder in self.encoders:
-            hidden_state = encoder(hidden_state, attention_mask)
+            hidden_state = encoder(hidden_state, attention_mask, head_mask=head_mask)
             if self.output_hidden_states:
                 hidden_states.append(hidden_state)
 

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 import torch
 from torch import nn
@@ -12,6 +12,7 @@ class TransformerEncoder(nn.Module):
     Input Shape:
         sequence: (Batch Size, Sequence Length, Hidden Size)
         attention_mask: (Batch Size, Sequence Length)
+        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         encoder_output: (Batch Size, Sequence Length, Hidden Size)
@@ -34,8 +35,8 @@ class TransformerEncoder(nn.Module):
         self.output_dropout = nn.Dropout(dropout)
         self.output_norm = nn.LayerNorm(hidden_size)
 
-    def forward(self, sequence: torch.Tensor, attention_mask: torch.Tensor):
-        sequence1 = self.attention_dropout(self.attention(sequence, attention_mask))
+    def forward(self, sequence: torch.Tensor, attention_mask: torch.Tensor, head_mask: Optional[torch.Tensor] = None):
+        sequence1 = self.attention_dropout(self.attention(sequence, attention_mask, head_mask=head_mask))
         sequence = self.attention_norm(sequence + sequence1)
 
         sequence1 = self.intermediate_dropout(self.intermediate_act(self.intermediate(sequence)))
@@ -131,6 +132,7 @@ class ConcatenatedSelfAttention(nn.Module):
     Input Shape:
         qkv: (Batch Size, Sequence Length, Input Size)
         attention_mask: (Batch Size, Sequence Length)
+        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         attention_output: (Batch Size, Sequence Length, Hidden Size)
@@ -146,10 +148,18 @@ class ConcatenatedSelfAttention(nn.Module):
         )
         self.output = nn.Linear(hidden_size, hidden_size)
 
-    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor):
-        concatenated_head_outputs = torch.cat([head(qkv, attention_mask) for head in self.heads], dim=-1)
-        attention_output = self.output(concatenated_head_outputs)
-        return attention_output
+        self.num_heads = num_heads
+
+    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor, head_mask: Optional[torch.Tensor] = None):
+        head_output = torch.cat([head(qkv, attention_mask) for head in self.heads], dim=-1)
+        attn_output = self.output(head_output)
+
+        if head_mask is not None:
+            shape_of_attn_output = attn_output.size()
+            attn_output = attn_output.view((shape_of_attn_output[0], shape_of_attn_output[1], self.num_heads, -1))
+            attn_output *= head_mask.unsqueeze(1).unsqueeze(-1)
+            attn_output = attn_output.view(shape_of_attn_output)
+        return attn_output
 
 
 def _get_activation_function(activation: str) -> Callable[[torch.Tensor], torch.Tensor]:
