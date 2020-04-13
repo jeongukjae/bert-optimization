@@ -7,11 +7,17 @@ from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerE
 
 
 def rewire_transformer_encoder(encoder: TransformerEncoder, rank: List[int]):
+    """
+    Rewiring both Multi Head Attention and Feed Forward Network
+    """
     rewire_mha(encoder.attention, rank)
     rewire_ffn(encoder, rank)
 
 
 def rewire_mha(attention: ConcatenatedSelfAttention, rank: List[int]):
+    """
+    Rewiring Multi Head Attention
+    """
     if len(rank) != len(attention.heads):
         raise ValueError("Length of rank and that of attention heads should be same")
 
@@ -24,6 +30,9 @@ def rewire_mha(attention: ConcatenatedSelfAttention, rank: List[int]):
 
 
 def rewire_ffn(encoder: TransformerEncoder, rank: List[int]):
+    """
+    Rewiring Feed Forward Network
+    """
     _change_rank_of_neuron(encoder.intermediate, rank, 0, True)
     _change_rank_of_neuron(encoder.output, rank, 1, False)
 

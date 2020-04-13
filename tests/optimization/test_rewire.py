@@ -1,9 +1,10 @@
-from dyna_bert.optimization.rewire import rewire_ffn, rewire_mha, rewire_transformer_encoder
 from typing import List
-from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
-import pytest
 
+import pytest
 import torch
+
+from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
+from dyna_bert.optimization.rewire import rewire_ffn, rewire_mha, rewire_transformer_encoder
 
 
 @pytest.mark.parametrize(
