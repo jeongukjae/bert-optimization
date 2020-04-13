@@ -6,6 +6,23 @@ from torch.nn import functional as F
 
 
 class BertConfig:
+    """
+    Configuration of BertModel
+
+    vocab_size: Size of Vocab
+    hidden_size: Hidden size used in embedding, MHA, pooling layers
+    num_hidden_layers: # of transformer encoder layer
+    num_attention_heads: # of attention heads in MHA
+    intermediate_size: Intermediate size used in MHA
+    hidden_act: Activation function used in transformer encoder layer
+    hidden_dropout_prob: Dropout prob
+    attention_probs_dropout_prob: Attention Dropout prob
+    max_position_embeddings: Max Position Embeddings
+    type_vocab_size: Vocab Type (2 => Sentence A/B)
+    output_hidden_states: A flag for BertModel to return hidden_states
+    output_embedding: A flag for BertModel to return embedding
+    """
+
     def __init__(
         self,
         vocab_size: int,
@@ -18,7 +35,6 @@ class BertConfig:
         attention_probs_dropout_prob: float = 0.1,
         max_position_embeddings: int = 512,
         type_vocab_size: int = 2,
-        initializer_range: float = 0.0,
         output_hidden_states: bool = True,
         output_embedding: bool = True,
         **kwargs,  # unused
@@ -27,7 +43,6 @@ class BertConfig:
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob
         self.hidden_size = hidden_size
-        self.initializer_range = initializer_range
         self.intermediate_size = intermediate_size
         self.max_position_embeddings = max_position_embeddings
         self.num_attention_heads = num_attention_heads
