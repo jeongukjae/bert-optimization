@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .transformer import TransformerEncoder
+
 
 class BertConfig:
     """
@@ -88,12 +90,12 @@ class BertModel(nn.Module):
 
         self.encoders = nn.ModuleList(
             [
-                nn.TransformerEncoderLayer(
-                    d_model=config.hidden_size,
-                    nhead=config.num_attention_heads,
-                    dim_feedforward=config.intermediate_size,
-                    dropout=config.attention_probs_dropout_prob,
-                    activation=config.hidden_act,
+                TransformerEncoder(
+                    config.num_attention_heads,
+                    config.hidden_size,
+                    config.intermediate_size,
+                    config.attention_probs_dropout_prob,
+                    config.hidden_act,
                 )
                 for _ in range(config.num_hidden_layers)
             ]
@@ -119,14 +121,14 @@ class BertModel(nn.Module):
         embeddings = self.embedding_layer_norm(embeddings)
         embeddings = self.embedding_dropout(embeddings)
 
-        hidden_state = embeddings.permute(1, 0, 2)
+        hidden_state = embeddings
         hidden_states = []
         for encoder in self.encoders:
-            hidden_state = encoder(hidden_state, src_key_padding_mask=attention_mask)
+            hidden_state = encoder(hidden_state, attention_mask)
             if self.output_hidden_states:
-                hidden_states.append(hidden_state.permute(1, 0, 2))
+                hidden_states.append(hidden_state)
 
-        sequence_output = hidden_state.permute(1, 0, 2)
+        sequence_output = hidden_state
         pooled_output = self.pooled_output_activate(self.pooler_layer(sequence_output[:, 0]))
 
         outputs = (sequence_output, pooled_output)
@@ -144,6 +146,7 @@ class BertMLMHead(nn.Module):
 
     encoder_output Shape:
         pooled_output: (Batch Size, Sequence Length, Hidden Size)
+
     Output Shape:
         mlm_logit: (Batch Size, Sequence Length, Vocab Size)
     """
@@ -171,6 +174,7 @@ class BertNSPHead(nn.Module):
 
     Input Shape:
         pooled_output: (Batch Size, Hidden Size)
+
     Output Shape:
         nsp_logit: (Batch Size, 2)
     """
