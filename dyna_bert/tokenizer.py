@@ -4,7 +4,7 @@ Check general category value of unicode in https://www.unicode.org/reports/tr44/
 """
 import unicodedata
 from collections import OrderedDict
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import List, Optional, Tuple, Union
 
 
 class SpecialToken:
@@ -40,23 +40,23 @@ class SubWordTokenizer:
 
 class Vocab:
     def __init__(self, vocab_path: str):
-        self.__vocab = self._load_vocab(vocab_path)
-        self.__inv_vocab = {v: k for k, v in self.__vocab.items()}
+        self._vocab = self._load_vocab(vocab_path)
+        self._inv_vocab = {v: k for k, v in self._vocab.items()}
 
     def __contains__(self, key: str) -> bool:
-        return key in self.__vocab
+        return key in self._vocab
 
     def convert_token_to_id(self, token: str) -> int:
-        return self.__vocab[token]
+        return self._vocab[token]
 
     def convert_id_to_token(self, id: int) -> str:
-        return self.__inv_vocab[id]
+        return self._inv_vocab[id]
 
     def convert_tokens_to_ids(self, tokens: List[str]) -> List[int]:
-        return cast(List[int], self._convert_by_vocab(self.__vocab, tokens))
+        return [self._vocab[token] for token in tokens]
 
     def convert_ids_to_tokens(self, ids: List[int]) -> List[str]:
-        return cast(List[str], self._convert_by_vocab(self.__inv_vocab, ids))
+        return [self._inv_vocab[index] for index in ids]
 
     @staticmethod
     def _load_vocab(vocab_path: str) -> OrderedDict:
@@ -69,10 +69,6 @@ class Vocab:
                 index += 1
 
         return vocab
-
-    @staticmethod
-    def _convert_by_vocab(vocab: Dict, items: List[Union[int, str]]) -> List[Union[int, str]]:
-        return [vocab[item] for item in items]
 
 
 class BasicTokenizer:
