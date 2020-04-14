@@ -144,7 +144,7 @@ def test_output_of_self_attention_and_multi_head_self_attention(
     single_output = attention_multihead.output(single_output)
 
     assert multi_output.shape == single_output.shape
-    assert torch.allclose(single_output, multi_output)
+    assert torch.allclose(single_output, multi_output, rtol=1e-3)
 
 
 @pytest.mark.parametrize(
