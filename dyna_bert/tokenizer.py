@@ -58,6 +58,9 @@ class Vocab:
     def convert_ids_to_tokens(self, ids: List[int]) -> List[str]:
         return [self._inv_vocab[index] for index in ids]
 
+    def __len__(self):
+        return len(self._vocab)
+
     @staticmethod
     def _load_vocab(vocab_path: str) -> OrderedDict:
         vocab = OrderedDict()
