@@ -1,4 +1,5 @@
 from .bert import BertConfig, BertMLMHead, BertModel, BertNSPHead
+from .heads import BertForClassification
 from .transformer import ConcatenatedSelfAttention, MultiHeadSelfAttention, SelfAttention, TransformerEncoder
 
 __all__ = [
@@ -6,6 +7,7 @@ __all__ = [
     "BertMLMHead",
     "BertModel",
     "BertNSPHead",
+    "BertForClassification",
     "ConcatenatedSelfAttention",
     "MultiHeadSelfAttention",
     "SelfAttention",

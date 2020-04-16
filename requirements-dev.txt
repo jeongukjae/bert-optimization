@@ -6,3 +6,5 @@ pytest
 
 # pytorch 1.4.0 does not install numpy
 numpy
+
+tqdm
