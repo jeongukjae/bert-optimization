@@ -1,8 +1,5 @@
-from typing import Generator, Tuple
-
 import pytest
-import torch
-from torch import nn
+import tensorflow as tf
 
 from dyna_bert.models.transformer import (
     ConcatenatedSelfAttention,
@@ -22,10 +19,10 @@ def test_shape_of_transformer_encoder_output(
     """Check shape of TransformerEncoder outputs"""
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, activation)
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    encoder_output = encoder(sequence, attention_mask)
+    encoder_output = encoder(sequence, mask=attention_mask)
 
     assert encoder_output.shape == (batch_size, seq_len, hidden_size)
 
@@ -44,10 +41,10 @@ def test_shape_of_multihead_self_attention_output(batch_size: int, seq_len: int,
     """Check shape of MultiHeadSelfAttention outputs"""
     attention = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    attention_output = attention(sequence, attention_mask)
+    attention_output = attention(sequence, mask=attention_mask)
 
     assert attention_output.shape == (batch_size, seq_len, hidden_size)
 
@@ -67,12 +64,12 @@ def test_multihead_attention_should_raise_with_invalid_num_heads():
 )
 def test_shape_of_self_attention_output(batch_size: int, seq_len: int, input_size: int, hidden_size: int):
     """Check shape of SelfAttention outputs"""
-    attention = SelfAttention(hidden_size, hidden_size, 0.0)
+    attention = SelfAttention(hidden_size, 0.0)
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    attention_output = attention(sequence, attention_mask)
+    attention_output = attention(sequence, mask=attention_mask)
 
     assert attention_output.shape == (batch_size, seq_len, hidden_size)
 
@@ -84,10 +81,10 @@ def test_shape_of_concatenated_self_attention_output(batch_size: int, seq_len: i
     """Check shape of ConcatenatedSelfAttention outputs"""
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    attention_output = attention(sequence, attention_mask)
+    attention_output = attention(sequence, mask=attention_mask)
 
     assert attention_output.shape == (batch_size, seq_len, hidden_size)
 
@@ -101,50 +98,16 @@ def test_shape_of_concatenated_self_attention_output_with_head_mask(batch_size: 
 
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
     # Masking two heads
-    head_mask = torch.tensor([[1.0, 1.0, 0.0, 0.0]] * batch_size)
+    head_mask = tf.constant([[1.0, 1.0, 0.0, 0.0]] * batch_size)
 
-    attention_output = attention(sequence, attention_mask, head_mask=head_mask)
+    attention_output = attention(sequence, mask=attention_mask, head_mask=head_mask)
 
     assert attention_output.shape == (batch_size, seq_len, hidden_size)
     # Last two heads output must be zeros
-    assert torch.all(attention_output[:, :, 2 * int(hidden_size / num_heads) :] == 0)
-
-
-@pytest.mark.parametrize(
-    "batch_size, seq_len, num_heads, hidden_size", [pytest.param(1, 3, 8, 16), pytest.param(3, 12, 4, 8)],
-)
-def test_output_of_self_attention_and_multi_head_self_attention(
-    batch_size: int, seq_len: int, num_heads: int, hidden_size: int
-):
-    """Check both outputs from attention and multi head attention are same"""
-    assert hidden_size % num_heads == 0
-
-    attention_multihead = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
-    attention_concat = [SelfAttention(hidden_size, int(hidden_size / num_heads), 0.0) for _ in range(num_heads)]
-
-    for i, (weight, bias) in zip(range(num_heads), _convert_attn_weight(attention_multihead.qkv_linear, num_heads)):
-
-        assert attention_concat[i].qkv_linear.weight.shape == weight.shape
-        assert attention_concat[i].qkv_linear.bias.shape == bias.shape
-
-        attention_concat[i].qkv_linear.weight.data = weight
-        attention_concat[i].qkv_linear.bias.data = bias
-
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
-
-    # 1. multi head attention
-    multi_output = attention_multihead(sequence, attention_mask)
-
-    # 2. single attention + concat
-    single_output = torch.cat([attention(sequence, attention_mask) for attention in attention_concat], dim=-1)
-    single_output = attention_multihead.output(single_output)
-
-    assert multi_output.shape == single_output.shape
-    assert torch.allclose(single_output, multi_output, rtol=1e-3)
+    assert tf.reduce_all(attention_output[:, :, 2 * int(hidden_size / num_heads) :] == 0)
 
 
 @pytest.mark.parametrize(
@@ -159,45 +122,42 @@ def test_output_of_concatenated_attention_and_multi_head_self_attention(
     attention_multihead = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
     attention_concat = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
-    for i, (weight, bias) in zip(range(num_heads), _convert_attn_weight(attention_multihead.qkv_linear, num_heads)):
-        assert attention_concat.heads[i].qkv_linear.weight.shape == weight.shape
-        assert attention_concat.heads[i].qkv_linear.bias.shape == bias.shape
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-        attention_concat.heads[i].qkv_linear.weight.data = weight
-        attention_concat.heads[i].qkv_linear.bias.data = bias
+    # Build TF Graphs
+    multi_output = attention_multihead(sequence, mask=attention_mask)
+    single_output = attention_concat(sequence, mask=attention_mask)
 
-    attention_concat.output.weight.data = attention_multihead.output.weight.data
-    attention_concat.output.bias.data = attention_multihead.output.bias.data
-
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    for i, (weight, bias) in zip(range(num_heads), _convert_attn_weight(attention_multihead.qkv_projection, num_heads)):
+        attention_concat.heads[i].qkv_projection.set_weights([weight, bias])
+    attention_concat.output_dense.set_weights(attention_multihead.output_dense.get_weights())
 
     # 1. multi head attention
-    multi_output = attention_multihead(sequence, attention_mask)
+    multi_output = attention_multihead(sequence, mask=attention_mask)
 
     # 2. single attention + concat
-    single_output = attention_concat(sequence, attention_mask)
+    single_output = attention_concat(sequence, mask=attention_mask)
 
     assert multi_output.shape == single_output.shape
-    assert torch.allclose(single_output, multi_output, rtol=1e-3)
+    tf.debugging.assert_near(single_output, multi_output)
 
 
-def _convert_attn_weight(
-    qkv_linear: nn.Linear, num_heads: int
-) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
-    wq, wk, wv = qkv_linear.weight.data.chunk(3, dim=0)
-    bq, bk, bv = qkv_linear.bias.data.chunk(3, dim=0)
+def _convert_attn_weight(qkv_projection, num_heads):
+    weights = qkv_projection.get_weights()
+    wq, wk, wv = tf.split(weights[0], 3, axis=1)
+    bq, bk, bv = tf.split(weights[1], 3, axis=0)
 
-    wq = wq.chunk(num_heads, 0)
-    wk = wk.chunk(num_heads, 0)
-    wv = wv.chunk(num_heads, 0)
+    wq = tf.split(wq, num_heads, 1)
+    wk = tf.split(wk, num_heads, 1)
+    wv = tf.split(wv, num_heads, 1)
 
-    bq = bq.chunk(num_heads, 0)
-    bk = bk.chunk(num_heads, 0)
-    bv = bv.chunk(num_heads, 0)
+    bq = tf.split(bq, num_heads, 0)
+    bk = tf.split(bk, num_heads, 0)
+    bv = tf.split(bv, num_heads, 0)
 
     for i in range(num_heads):
-        weight = torch.cat((wq[i], wk[i], wv[i]), dim=0)
-        bias = torch.cat((bq[i], bk[i], bv[i]), dim=0)
+        weight = tf.concat((wq[i], wk[i], wv[i]), axis=1)
+        bias = tf.concat((bq[i], bk[i], bv[i]), axis=0)
 
         yield weight, bias

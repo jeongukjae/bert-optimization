@@ -1,5 +1,5 @@
 import pytest
-import torch
+import tensorflow as tf
 
 from dyna_bert.models.bert import BertConfig, BertMLMHead, BertModel, BertNSPHead
 
@@ -18,11 +18,11 @@ def test_shapes_of_bert_model_outputs(bert_config: BertConfig, batch_size: int, 
     bert_config.output_hidden_states = True
     bert = BertModel(bert_config)
 
-    input_ids = torch.randint(bert_config.vocab_size, (batch_size, seq_len))
-    token_type_ids = torch.randint(bert_config.type_vocab_size, (batch_size, seq_len))
-    attention_mask = torch.randint(2, (batch_size, seq_len)).bool()
+    input_ids = tf.random.uniform((batch_size, seq_len), maxval=bert_config.vocab_size)
+    token_type_ids = tf.random.uniform((batch_size, seq_len), maxval=bert_config.type_vocab_size)
+    attention_mask = tf.cast(tf.random.uniform((batch_size, seq_len), maxval=2), tf.dtypes.bool)
 
-    outputs = bert(input_ids, token_type_ids, attention_mask)
+    outputs = bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
 
     assert len(outputs) == 4
     assert outputs[0].shape == (batch_size, seq_len, bert_config.hidden_size)  # sequence output
@@ -34,9 +34,9 @@ def test_shapes_of_bert_model_outputs(bert_config: BertConfig, batch_size: int, 
 @pytest.mark.parametrize("batch_size", [pytest.param(1), pytest.param(3)])
 def test_shape_of_nsp_head_output(bert_config: BertConfig, batch_size: int):
     """Check shape of NSP Head outputs"""
-    nsp_head = BertNSPHead(bert_config)
+    nsp_head = BertNSPHead()
 
-    pooled_output = torch.rand((batch_size, bert_config.hidden_size))
+    pooled_output = tf.random.uniform((batch_size, bert_config.hidden_size))
     outputs = nsp_head(pooled_output)
 
     assert outputs.shape == (batch_size, 2)
@@ -47,7 +47,7 @@ def test_shape_of_mlm_head_output(bert_config: BertConfig, batch_size: int, seq_
     """Check shape of MLM model outputs"""
     mlm_head = BertMLMHead(bert_config)
 
-    pooled_output = torch.rand((batch_size, seq_len, bert_config.hidden_size))
+    pooled_output = tf.random.uniform((batch_size, seq_len, bert_config.hidden_size))
     outputs = mlm_head(pooled_output)
 
     assert outputs.shape == (batch_size, seq_len, bert_config.vocab_size)

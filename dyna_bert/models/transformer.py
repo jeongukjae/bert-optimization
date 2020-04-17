@@ -1,11 +1,7 @@
-from typing import Callable, Optional
-
-import torch
-from torch import nn
-from torch.nn import functional as F
+import tensorflow as tf
 
 
-class TransformerEncoder(nn.Module):
+class TransformerEncoder(tf.keras.layers.Layer):
     """
     TransformerEncoder: https://arxiv.org/abs/1706.03762
 
@@ -18,35 +14,33 @@ class TransformerEncoder(nn.Module):
         encoder_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(
-        self, num_heads: int, hidden_size: int, intermediate_size: int, dropout: float, activation: str,
-    ):
+    def __init__(self, num_heads, hidden_size, intermediate_size, dropout, activation):
         super().__init__()
 
         self.attention = ConcatenatedSelfAttention(num_heads, hidden_size, dropout=dropout)
-        self.attention_dropout = nn.Dropout(dropout)
-        self.attention_norm = nn.LayerNorm(hidden_size)
+        self.attention_dropout = tf.keras.layers.Dropout(dropout)
+        self.attention_norm = tf.keras.layers.LayerNormalization()
 
-        self.intermediate = nn.Linear(hidden_size, intermediate_size)
+        self.intermediate = tf.keras.layers.Dense(intermediate_size)
         self.intermediate_act = _get_activation_function(activation)
-        self.intermediate_dropout = nn.Dropout(dropout)
+        self.intermediate_dropout = tf.keras.layers.Dropout(dropout)
 
-        self.output = nn.Linear(intermediate_size, hidden_size)
-        self.output_dropout = nn.Dropout(dropout)
-        self.output_norm = nn.LayerNorm(hidden_size)
+        self.output_dense = tf.keras.layers.Dense(hidden_size)
+        self.output_dropout = tf.keras.layers.Dropout(dropout)
+        self.output_norm = tf.keras.layers.LayerNormalization()
 
-    def forward(self, sequence: torch.Tensor, attention_mask: torch.Tensor, head_mask: Optional[torch.Tensor] = None):
-        sequence1 = self.attention_dropout(self.attention(sequence, attention_mask, head_mask=head_mask))
+    def call(self, sequence, mask, head_mask=None):
+        sequence1 = self.attention_dropout(self.attention(sequence, mask=mask, head_mask=head_mask))
         sequence = self.attention_norm(sequence + sequence1)
 
         sequence1 = self.intermediate_dropout(self.intermediate_act(self.intermediate(sequence)))
-        sequence1 = self.output_dropout(self.output(sequence1))
+        sequence1 = self.output_dropout(self.output_dense(sequence1))
         sequence = self.output_norm(sequence + sequence1)
 
         return sequence
 
 
-class MultiHeadSelfAttention(nn.Module):
+class MultiHeadSelfAttention(tf.keras.layers.Layer):
     """
     Multi Head Self Attention (MHA + Self Attention): https://arxiv.org/abs/1706.03762
 
@@ -58,44 +52,48 @@ class MultiHeadSelfAttention(nn.Module):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads: int, hidden_size: int, dropout: float):
+    def __init__(self, num_heads, hidden_size, dropout):
         super().__init__()
         if hidden_size % num_heads != 0:
             raise ValueError("Hidden size should be multiple of the # of attention heads")
 
-        self.qkv_linear = nn.Linear(hidden_size, hidden_size * 3)
-        self.dropout = nn.Dropout(dropout)
-        self.output = nn.Linear(hidden_size, hidden_size)
+        self.qkv_projection = tf.keras.layers.Dense(hidden_size * 3)
+        self.dropout = tf.keras.layers.Dropout(dropout)
+        self.output_dense = tf.keras.layers.Dense(hidden_size)
 
         self.scaling_factor = (hidden_size / num_heads) ** 0.5
         self.head_dims = int(hidden_size / num_heads)
         self.hidden_size = hidden_size
         self.num_heads = num_heads
 
-    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor):
-        sequence_length = qkv.size(1)
+    def call(self, qkv, mask):
+        sequence_length = tf.shape(qkv)[1]
 
-        query, key, value = self.qkv_linear(qkv).chunk(3, dim=-1)
+        query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
         query *= self.scaling_factor
 
         # batch size, num heads, sequence length, head dims
-        query = query.contiguous().view(-1, sequence_length, self.num_heads, self.head_dims).transpose(1, 2)
-        key = key.contiguous().view(-1, sequence_length, self.num_heads, self.head_dims).transpose(1, 2)
-        value = value.contiguous().view(-1, sequence_length, self.num_heads, self.head_dims).transpose(1, 2)
+        query = tf.reshape(query, [-1, sequence_length, self.num_heads, self.head_dims])
+        key = tf.reshape(key, [-1, sequence_length, self.num_heads, self.head_dims])
+        value = tf.reshape(value, [-1, sequence_length, self.num_heads, self.head_dims])
+
+        query = tf.transpose(query, perm=[0, 2, 1, 3])
+        key = tf.transpose(key, perm=[0, 2, 1, 3])
+        value = tf.transpose(value, perm=[0, 2, 1, 3])
 
         # batch size, num heads, sequence length, sequence length
-        scores = torch.matmul(query, key.transpose(2, 3))
-        scores = scores.masked_fill(attention_mask.unsqueeze(1).unsqueeze(1), float("-inf"))
-        distributions = self.dropout(F.softmax(scores, -1))
+        scores = tf.matmul(query, key, transpose_b=True)
+        scores = tf.where(tf.expand_dims(tf.expand_dims(mask, 1), 1), tf.constant(float("-inf")), scores)
+        distributions = self.dropout(tf.nn.softmax(scores, -1))
 
         # batch size, sequence length, num heads, head dims
-        attention_output = torch.matmul(distributions, value).transpose(1, 2).contiguous()
-        attention_output = attention_output.view(-1, sequence_length, self.hidden_size)
+        attention_output = tf.transpose(tf.matmul(distributions, value), perm=[0, 2, 1, 3])
+        attention_output = tf.reshape(attention_output, [-1, sequence_length, self.hidden_size])
 
-        return self.output(attention_output)
+        return self.output_dense(attention_output)
 
 
-class SelfAttention(nn.Module):
+class SelfAttention(tf.keras.layers.Layer):
     """
     Vanilla Self Attention
 
@@ -107,25 +105,25 @@ class SelfAttention(nn.Module):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, input_size: int, hidden_size: int, dropout: float):
+    def __init__(self, hidden_size, dropout):
         super().__init__()
 
-        self.qkv_linear = nn.Linear(input_size, hidden_size * 3)
-        self.dropout = nn.Dropout(dropout)
+        self.qkv_projection = tf.keras.layers.Dense(hidden_size * 3)
+        self.dropout = tf.keras.layers.Dropout(dropout)
         self.scaling_factor = hidden_size ** 0.5
 
-    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor):
-        query, key, value = self.qkv_linear(qkv).chunk(3, dim=-1)
+    def call(self, qkv, mask):
+        query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
         query *= self.scaling_factor
 
-        scores = torch.matmul(query, key.transpose(1, 2))
-        scores = scores.masked_fill(attention_mask.unsqueeze(1), float("-inf"))
-        distributions = self.dropout(F.softmax(scores, -1))
+        scores = tf.matmul(query, key, transpose_b=True)
+        scores = tf.where(tf.expand_dims(mask, 1), tf.constant(float("-inf")), scores)
+        distributions = self.dropout(tf.nn.softmax(scores, -1))
 
-        return torch.matmul(distributions, value)
+        return tf.matmul(distributions, value)
 
 
-class ConcatenatedSelfAttention(nn.Module):
+class ConcatenatedSelfAttention(tf.keras.layers.Layer):
     """
     Multi Head Self Attention using Single Head Self Attention
 
@@ -138,35 +136,39 @@ class ConcatenatedSelfAttention(nn.Module):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads: int, hidden_size: int, dropout: float):
+    def __init__(self, num_heads, hidden_size, dropout):
         super().__init__()
         if hidden_size % num_heads != 0:
             raise ValueError("Hidden size should be multiple of the # of attention heads")
 
-        self.heads = nn.ModuleList(
-            [SelfAttention(hidden_size, int(hidden_size / num_heads), dropout) for _ in range(num_heads)]
-        )
-        self.output = nn.Linear(hidden_size, hidden_size)
+        self.heads = [SelfAttention(int(hidden_size / num_heads), dropout) for _ in range(num_heads)]
+        self.output_dense = tf.keras.layers.Dense(hidden_size)
 
         self.num_heads = num_heads
 
-    def forward(self, qkv: torch.Tensor, attention_mask: torch.Tensor, head_mask: Optional[torch.Tensor] = None):
-        head_output = torch.cat([head(qkv, attention_mask) for head in self.heads], dim=-1)
-        attn_output = self.output(head_output)
+    def call(self, qkv, mask, head_mask=None):
+        head_output = tf.concat([head(qkv, mask=mask) for head in self.heads], axis=-1)
+        attn_output = self.output_dense(head_output)
 
         if head_mask is not None:
-            shape_of_attn_output = attn_output.size()
-            attn_output = attn_output.view((shape_of_attn_output[0], shape_of_attn_output[1], self.num_heads, -1))
-            attn_output *= head_mask.unsqueeze(1).unsqueeze(-1)
-            attn_output = attn_output.view(shape_of_attn_output)
+            attn_output_shape = tf.shape(attn_output)
+            attn_output = tf.reshape(attn_output, (attn_output_shape[0], attn_output_shape[1], self.num_heads, -1))
+            attn_output *= tf.expand_dims(tf.expand_dims(head_mask, 1), -1)
+            attn_output = tf.reshape(attn_output, attn_output_shape)
         return attn_output
 
 
-def _get_activation_function(activation: str) -> Callable[[torch.Tensor], torch.Tensor]:
+def _get_activation_function(activation):
     if activation == "gelu":
-        return F.gelu
+        return gelu
 
     if activation == "relu":
-        return F.relu
+        return tf.nn.relu
 
     raise ValueError("Activation Function should be a gelu or relu. Input: {}".format(activation))
+
+
+@tf.function
+def gelu(x):
+    """Gaussian Error Linear Units (GELUs)"""
+    return 0.5 * (x + tf.nn.tanh(x * 0.7978845608028654 * (x + 0.044715 * x * x * x)))

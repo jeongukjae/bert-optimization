@@ -1,11 +1,9 @@
 import json
-from typing import Optional
 
-import torch
-from torch import nn
-from torch.nn import functional as F
+import tensorflow as tf
 
-from .transformer import TransformerEncoder
+from .heads import ClassificationHead
+from .transformer import TransformerEncoder, gelu
 
 
 class BertConfig:
@@ -63,7 +61,7 @@ class BertConfig:
         return BertConfig(**file_content)
 
 
-class BertModel(nn.Module):
+class BertModel(tf.keras.layers.Layer):
     """
     Base Bert Model: https://arxiv.org/abs/1810.04805
 
@@ -84,40 +82,33 @@ class BertModel(nn.Module):
 
     def __init__(self, config: BertConfig):
         super(BertModel, self).__init__()
-        self.token_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
-        self.embedding_layer_norm = nn.LayerNorm(config.hidden_size)
-        self.embedding_dropout = nn.Dropout(p=config.hidden_dropout_prob)
+        self.token_embeddings = tf.keras.layers.Embedding(config.vocab_size, config.hidden_size)
+        self.token_type_embeddings = tf.keras.layers.Embedding(config.type_vocab_size, config.hidden_size)
+        self.position_embeddings = tf.keras.layers.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.embedding_layer_norm = tf.keras.layers.LayerNormalization()
+        self.embedding_dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
 
-        self.encoders = nn.ModuleList(
-            [
-                TransformerEncoder(
-                    config.num_attention_heads,
-                    config.hidden_size,
-                    config.intermediate_size,
-                    config.attention_probs_dropout_prob,
-                    config.hidden_act,
-                )
-                for _ in range(config.num_hidden_layers)
-            ]
-        )
+        self.encoders = [
+            TransformerEncoder(
+                config.num_attention_heads,
+                config.hidden_size,
+                config.intermediate_size,
+                config.attention_probs_dropout_prob,
+                config.hidden_act,
+            )
+            for _ in range(config.num_hidden_layers)
+        ]
 
-        self.pooler_layer = nn.Linear(config.hidden_size, config.hidden_size)
-        self.pooled_output_activate = nn.Tanh()
+        self.pooler_layer = tf.keras.layers.Dense(config.hidden_size)
 
         self.output_hidden_states = config.output_hidden_states
         self.output_embedding = config.output_embedding
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        token_type_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
+    def call(
+        self, input_ids, token_type_ids, attention_mask, head_mask=None,
     ):
-        seq_length = input_ids.size(1)
-        position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+        seq_length = tf.shape(input_ids)[1]
+        position_ids = tf.range(0, seq_length, 1, dtype=tf.dtypes.int32)
 
         words_embeddings = self.token_embeddings(input_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
@@ -130,12 +121,12 @@ class BertModel(nn.Module):
         hidden_state = embeddings
         hidden_states = []
         for encoder in self.encoders:
-            hidden_state = encoder(hidden_state, attention_mask, head_mask=head_mask)
+            hidden_state = encoder(hidden_state, mask=attention_mask, head_mask=head_mask)
             if self.output_hidden_states:
                 hidden_states.append(hidden_state)
 
         sequence_output = hidden_state
-        pooled_output = self.pooled_output_activate(self.pooler_layer(sequence_output[:, 0]))
+        pooled_output = tf.nn.tanh(self.pooler_layer(sequence_output[:, 0]))
 
         outputs = (sequence_output, pooled_output)
         if self.output_embedding:
@@ -146,7 +137,7 @@ class BertModel(nn.Module):
         return outputs
 
 
-class BertMLMHead(nn.Module):
+class BertMLMHead(tf.keras.layers.Layer):
     """
     Masked LM Head used in Bert
 
@@ -160,21 +151,20 @@ class BertMLMHead(nn.Module):
     def __init__(self, config: BertConfig):
         super(BertMLMHead, self).__init__()
 
-        self.transform = nn.Linear(config.hidden_size, config.hidden_size)
-        self.transform_layer_norm = nn.LayerNorm(config.hidden_size)
+        self.transform = tf.keras.layers.Dense(config.hidden_size)
+        self.transform_layer_norm = tf.keras.layers.LayerNormalization()
 
-        self.output_layer = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.output_bias = nn.Parameter(torch.zeros(config.vocab_size))
+        self.output_layer = tf.keras.layers.Dense(config.vocab_size)
 
-    def forward(self, encoder_output: torch.Tensor) -> torch.Tensor:
-        transformed = F.gelu(self.transform(encoder_output))
+    def call(self, encoder_output):
+        transformed = gelu(self.transform(encoder_output))
         transformed = self.transform_layer_norm(transformed)
 
         logits = self.output_layer(transformed)
-        return F.softmax(logits + self.output_bias, -1)
+        return tf.nn.softmax(logits, -1)
 
 
-class BertNSPHead(nn.Module):
+class BertNSPHead(tf.keras.layers.Layer):
     """
     NSP (Next Sentence Prediction) Head used in Bert
 
@@ -185,9 +175,45 @@ class BertNSPHead(nn.Module):
         nsp_logit: (Batch Size, 2)
     """
 
-    def __init__(self, config: BertConfig):
+    def __init__(self):
         super(BertNSPHead, self).__init__()
-        self.output_layer = nn.Linear(config.hidden_size, 2)
+        self.output_layer = tf.keras.layers.Dense(2)
 
-    def forward(self, pooled_output: torch.Tensor) -> torch.Tensor:
-        return F.softmax(self.output_layer(pooled_output), dim=-1)
+    def call(self, pooled_output):
+        return tf.nn.softmax(self.output_layer(pooled_output), axis=-1)
+
+
+class BertForClassification(tf.keras.Model):
+    """
+    Bert Model with Classification Layer
+
+    Input Shape:
+        input_ids: (Batch Size, Sequence Length)
+        token_type_ids:: (Batch Size, Sequence Length)
+        attention_mask:: (Batch Size, Sequence Length)
+        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
+
+    Output Shape:
+        logits: (Batch Size, Num Classes)
+        bert_output
+            sequence_output: (Batch Size, Sequence Length, Hidden Size)
+            pooled_output: (Batch Size, Hidden Size)
+            embeddings: (Batch Size, Sequence Length, Hidden Size)
+            hidden_states: (Num Layers, Batch Size, Sequence Length, Hidden Size)
+
+    hidden_states is a "num layers"-length list of tensor that has shape of (Batch Size, Sequence Length, Hidden Size)
+    """
+
+    def __init__(self, bert_config: BertConfig, num_classes: int):
+        super().__init__()
+
+        self.bert = BertModel(bert_config)
+        self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
+
+    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None):
+        bert_output = self.bert(
+            input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask, head_mask=head_mask
+        )
+        logits = self.classifier(bert_output[1])
+
+        return logits, bert_output

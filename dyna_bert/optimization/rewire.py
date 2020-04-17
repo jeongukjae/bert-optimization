@@ -5,8 +5,7 @@ https://arxiv.org/abs/2004.04037
 """
 from typing import List
 
-import torch
-from torch import nn
+import tensorflow as tf
 
 from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
 
@@ -32,10 +31,10 @@ def rewire_mha(attention: ConcatenatedSelfAttention, rank: List[int]):
 
     # rewire heads
     heads = [l for _, l in sorted(zip(rank, attention.heads))]
-    attention.heads = nn.ModuleList(heads)
+    attention.heads = heads
 
     # rewire output linear layer
-    _change_rank_of_neuron(attention.output, rank, 1, False)
+    _change_rank_of_neuron(attention.output_dense, rank, 0, False)
 
 
 def rewire_ffn(encoder: TransformerEncoder, rank: List[int]):
@@ -44,19 +43,19 @@ def rewire_ffn(encoder: TransformerEncoder, rank: List[int]):
 
     https://arxiv.org/abs/2004.04037
     """
-    _change_rank_of_neuron(encoder.intermediate, rank, 0, True)
-    _change_rank_of_neuron(encoder.output, rank, 1, False)
+    _change_rank_of_neuron(encoder.intermediate, rank, 1, True)
+    _change_rank_of_neuron(encoder.output_dense, rank, 0, False)
 
 
-def _change_rank_of_neuron(linear: nn.Linear, rank: List[int], weight_rank: int, change_bias: bool):
-    linear_weights = [w for _, w in sorted(zip(rank, linear.weight.data.chunk(len(rank), weight_rank)))]
-    linear_weight = torch.cat(linear_weights, weight_rank)
+def _change_rank_of_neuron(linear: tf.keras.layers.Layer, rank: List[int], weight_rank: int, change_bias: bool):
+    weights = linear.get_weights()
 
-    assert linear_weight.shape == linear.weight.shape
+    linear_weights = [w for _, w in sorted(zip(rank, tf.split(weights[0], len(rank), weight_rank)))]
+    linear_weight = tf.concat(linear_weights, weight_rank)
 
-    linear.weight.data = linear_weight.data
-
-    if change_bias:
-        linear_biases = [b for _, b in sorted(zip(rank, linear.bias.data.chunk(len(rank), 0)))]
-        linear_bias = torch.cat(linear_biases, 0)
-        linear.bias.data = linear_bias.data
+    if not change_bias:
+        linear.set_weights([linear_weight, weights[1]])
+    else:
+        linear_biases = [b for _, b in sorted(zip(rank, tf.split(weights[1], len(rank), 0)))]
+        linear_bias = tf.concat(linear_biases, 0)
+        linear.set_weights([linear_weight, linear_bias])

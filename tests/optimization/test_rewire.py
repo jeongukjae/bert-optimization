@@ -1,7 +1,7 @@
 from typing import List
 
 import pytest
-import torch
+import tensorflow as tf
 
 from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
 from dyna_bert.optimization.rewire import rewire_ffn, rewire_mha, rewire_transformer_encoder
@@ -19,18 +19,17 @@ from dyna_bert.optimization.rewire import rewire_ffn, rewire_mha, rewire_transfo
 def test_rewire_mha(batch_size: int, seq_len: int, num_heads: int, hidden_size: int, rank: List[int]):
     """Check output is the same before and after rewire_mha"""
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
-    attention.eval()
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    attention_output_before = attention(sequence, attention_mask)
+    attention_output_before = attention(sequence, mask=attention_mask)
 
     rewire_mha(attention, rank)
 
-    attention_output_after = attention(sequence, attention_mask)
+    attention_output_after = attention(sequence, mask=attention_mask)
 
-    assert torch.allclose(attention_output_before, attention_output_after, rtol=1e-3)
+    tf.debugging.assert_near(attention_output_before, attention_output_after)
 
 
 @pytest.mark.parametrize(
@@ -47,10 +46,9 @@ def test_rewire_ffn(
 ):
     """Check output is the same before and after rewire_ffn"""
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu")
-    encoder.eval()
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
     encoder_output_before = encoder(sequence, attention_mask)
 
@@ -58,7 +56,7 @@ def test_rewire_ffn(
 
     encoder_output_after = encoder(sequence, attention_mask)
 
-    assert torch.allclose(encoder_output_before, encoder_output_after, rtol=1e-3)
+    tf.debugging.assert_near(encoder_output_before, encoder_output_after)
 
 
 @pytest.mark.parametrize(
@@ -75,15 +73,14 @@ def test_rewire_transformer_encoder(
 ):
     """Check output is the same before and after rewire_transformer_encoder"""
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu")
-    encoder.eval()
 
-    sequence = torch.rand((batch_size, seq_len, hidden_size))
-    attention_mask = torch.tensor([[False] * seq_len] * batch_size)
+    sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
+    attention_mask = tf.constant([[False] * seq_len] * batch_size)
 
-    encoder_output_before = encoder(sequence, attention_mask)
+    encoder_output_before = encoder(sequence, mask=attention_mask)
 
     rewire_transformer_encoder(encoder, rank)
 
-    encoder_output_after = encoder(sequence, attention_mask)
+    encoder_output_after = encoder(sequence, mask=attention_mask)
 
-    assert torch.allclose(encoder_output_before, encoder_output_after, rtol=1e-3)
+    tf.debugging.assert_near(encoder_output_before, encoder_output_after)
