@@ -29,12 +29,14 @@ class TransformerEncoder(tf.keras.layers.Layer):
         self.output_dropout = tf.keras.layers.Dropout(dropout)
         self.output_norm = tf.keras.layers.LayerNormalization()
 
-    def call(self, sequence, mask, head_mask=None):
-        sequence1 = self.attention_dropout(self.attention(sequence, mask=mask, head_mask=head_mask))
+    def call(self, sequence, mask, head_mask=None, training=False):
+        sequence1 = self.attention_dropout(
+            self.attention(sequence, mask=mask, head_mask=head_mask, training=training), training=training
+        )
         sequence = self.attention_norm(sequence + sequence1)
 
-        sequence1 = self.intermediate_dropout(self.intermediate_act(self.intermediate(sequence)))
-        sequence1 = self.output_dropout(self.output_dense(sequence1))
+        sequence1 = self.intermediate_dropout(self.intermediate_act(self.intermediate(sequence)), training=training)
+        sequence1 = self.output_dropout(self.output_dense(sequence1), training=training)
         sequence = self.output_norm(sequence + sequence1)
 
         return sequence
@@ -66,7 +68,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         self.hidden_size = hidden_size
         self.num_heads = num_heads
 
-    def call(self, qkv, mask):
+    def call(self, qkv, mask, training=False):
         sequence_length = tf.shape(qkv)[1]
 
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
@@ -84,7 +86,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         # batch size, num heads, sequence length, sequence length
         scores = tf.matmul(query, key, transpose_b=True)
         scores = tf.where(tf.expand_dims(tf.expand_dims(mask, 1), 1), tf.constant(float("-inf")), scores)
-        distributions = self.dropout(tf.nn.softmax(scores, -1))
+        distributions = self.dropout(tf.nn.softmax(scores, -1), training=training)
 
         # batch size, sequence length, num heads, head dims
         attention_output = tf.transpose(tf.matmul(distributions, value), perm=[0, 2, 1, 3])
@@ -112,13 +114,13 @@ class SelfAttention(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.scaling_factor = hidden_size ** 0.5
 
-    def call(self, qkv, mask):
+    def call(self, qkv, mask, training=False):
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
         query *= self.scaling_factor
 
         scores = tf.matmul(query, key, transpose_b=True)
         scores = tf.where(tf.expand_dims(mask, 1), tf.constant(float("-inf")), scores)
-        distributions = self.dropout(tf.nn.softmax(scores, -1))
+        distributions = self.dropout(tf.nn.softmax(scores, -1), training=training)
 
         return tf.matmul(distributions, value)
 
@@ -146,8 +148,8 @@ class ConcatenatedSelfAttention(tf.keras.layers.Layer):
 
         self.num_heads = num_heads
 
-    def call(self, qkv, mask, head_mask=None):
-        head_output = tf.concat([head(qkv, mask=mask) for head in self.heads], axis=-1)
+    def call(self, qkv, mask, head_mask=None, training=False):
+        head_output = tf.concat([head(qkv, mask=mask, training=training) for head in self.heads], axis=-1)
         attn_output = self.output_dense(head_output)
 
         if head_mask is not None:

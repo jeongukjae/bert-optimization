@@ -104,9 +104,7 @@ class BertModel(tf.keras.layers.Layer):
         self.output_hidden_states = config.output_hidden_states
         self.output_embedding = config.output_embedding
 
-    def call(
-        self, input_ids, token_type_ids, attention_mask, head_mask=None,
-    ):
+    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=False):
         seq_length = tf.shape(input_ids)[1]
         position_ids = tf.range(0, seq_length, 1, dtype=tf.dtypes.int32)
 
@@ -116,12 +114,12 @@ class BertModel(tf.keras.layers.Layer):
 
         embeddings = words_embeddings + position_embeddings + token_type_embeddings
         embeddings = self.embedding_layer_norm(embeddings)
-        embeddings = self.embedding_dropout(embeddings)
+        embeddings = self.embedding_dropout(embeddings, training=training)
 
         hidden_state = embeddings
         hidden_states = []
         for encoder in self.encoders:
-            hidden_state = encoder(hidden_state, mask=attention_mask, head_mask=head_mask)
+            hidden_state = encoder(hidden_state, mask=attention_mask, head_mask=head_mask, training=training)
             if self.output_hidden_states:
                 hidden_states.append(hidden_state)
 
@@ -210,9 +208,13 @@ class BertForClassification(tf.keras.Model):
         self.bert = BertModel(bert_config)
         self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
 
-    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None):
+    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=False):
         bert_output = self.bert(
-            input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask, head_mask=head_mask
+            input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            head_mask=head_mask,
+            training=training,
         )
         logits = self.classifier(bert_output[1])
 
