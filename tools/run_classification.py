@@ -60,21 +60,37 @@ if __name__ == "__main__":
     dev_dataset = convert_single_sentence(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
     # test_dataset = convert_single_sentence(test_dataset, label_to_index, tokenizer, args.max_sequence_length)
 
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_dataset).shuffle(1000).batch(args.train_batch_size)
+
     bert_config = models.BertConfig.from_json(args.config)
     model = models.BertForClassification(bert_config, len(label_to_index))
 
     assert bert_config.vocab_size == len(vocab), "Actual vocab size and that in bert config are different."
 
-    model.compile(
-        optimizer=tfa.optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay),
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[tfa.metrics.MatthewsCorrelationCoefficient(num_classes=1)],
-    )
+    optimizer = tfa.optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
+    criterion = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
-    history = model.fit(
-        train_dataset[1:],
-        train_dataset[0],
-        batch_size=args.train_batch_size,
-        epochs=args.epoch,
-        validation_data=(dev_dataset[1:], dev_dataset[0]),
-    )
+    train_loss = tf.keras.metrics.Mean(name="train_loss")
+    train_mcc = tfa.metrics.MatthewsCorrelationCoefficient(name="train_mcc", num_classes=1)
+    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
+
+    @tf.function
+    def train_step(input_ids, token_type_ids, attention_mask, targets):
+        with tf.GradientTape() as tape:
+            preds, _ = model(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask, training=True)
+            loss = criterion(targets, preds)
+
+        gradients = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        train_loss(loss)
+        train_accuracy(targets, preds)
+        train_mcc(tf.expand_dims(targets, 1), tf.expand_dims(tf.argmax(preds, -1), 1))
+
+    for epoch_index in range(args.epoch):
+        for step, (targets, input_ids, token_type_ids, attention_mask) in enumerate(train_dataset):
+            train_step(input_ids, token_type_ids, attention_mask, targets)
+
+            print(
+                f"step: {step+ 1}, loss: {train_loss.result()}, acc: {train_accuracy.result()}, MCC: {train_mcc.result()}"
+            )
