@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_addons as tfa
 
 
 class TransformerEncoder(tf.keras.layers.Layer):
@@ -162,15 +163,9 @@ class ConcatenatedSelfAttention(tf.keras.layers.Layer):
 
 def _get_activation_function(activation):
     if activation == "gelu":
-        return gelu
+        return tfa.activations.gelu
 
     if activation == "relu":
         return tf.nn.relu
 
     raise ValueError("Activation Function should be a gelu or relu. Input: {}".format(activation))
-
-
-@tf.function
-def gelu(x):
-    """Gaussian Error Linear Units (GELUs)"""
-    return 0.5 * (x + tf.nn.tanh(x * 0.7978845608028654 * (x + 0.044715 * x * x * x)))

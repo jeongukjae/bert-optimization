@@ -1,9 +1,10 @@
 import json
 
 import tensorflow as tf
+import tensorflow_addons as tfa
 
 from .heads import ClassificationHead
-from .transformer import TransformerEncoder, gelu
+from .transformer import TransformerEncoder
 
 
 class BertConfig:
@@ -155,7 +156,7 @@ class BertMLMHead(tf.keras.layers.Layer):
         self.output_layer = tf.keras.layers.Dense(config.vocab_size)
 
     def call(self, encoder_output):
-        transformed = gelu(self.transform(encoder_output))
+        transformed = tfa.activations.gelu(self.transform(encoder_output))
         transformed = self.transform_layer_norm(transformed)
 
         logits = self.output_layer(transformed)
