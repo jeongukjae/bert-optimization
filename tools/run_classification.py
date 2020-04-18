@@ -1,3 +1,5 @@
+import sys
+import logging
 import os
 from typing import Tuple, Optional, List, Dict
 
@@ -7,7 +9,7 @@ import tensorflow_addons as tfa
 from dyna_bert import models
 from dyna_bert import glue_processor
 from dyna_bert import tokenizer
-from dyna_bert import trainer
+from dyna_bert import utils
 
 TASKS = ["cola"]
 
@@ -35,9 +37,29 @@ def convert_single_sentence(
     return (labels, input_ids, token_type_ids, attention_mask)
 
 
+@tf.function
+def build_bert_model_graph(bert_model: models.BertForClassification, bert_config: models.BertConfig):
+    token_ids = tf.constant([[1] * bert_config.max_position_embeddings])
+    token_type_ids = tf.constant([[0] * bert_config.max_position_embeddings])
+    attention_mask = tf.constant([[False] * bert_config.max_position_embeddings])
+
+    bert_model(token_ids, token_type_ids, attention_mask)
+
+
 if __name__ == "__main__":
-    parser = trainer.get_default_bert_argument_parser()
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(asctime)s: [%(levelname)s] %(message)s"))
+    logger.addHandler(handler)
+
+    parser = utils.get_default_bert_argument_parser()
     args = parser.parse_args()
+
+    logger.info("Training Parameters")
+    for key, val in vars(args).items():
+        logger.info(f" - {key}: {val}")
 
     assert args.task.lower() in TASKS, f"Supported Tasks: {', '.join(TASKS)}"
 
@@ -50,6 +72,7 @@ if __name__ == "__main__":
     vocab = tokenizer.Vocab(args.vocab)
     tokenizer = tokenizer.SubWordTokenizer(vocab, args.do_lower_case)
 
+    logger.info("Processing Data")
     cola_processor = glue_processor.CoLAProcessor()
     label_to_index = cola_processor.get_label_to_index()
     train_dataset = cola_processor.get_train(args.dataset)
@@ -62,11 +85,20 @@ if __name__ == "__main__":
 
     train_dataset = tf.data.Dataset.from_tensor_slices(train_dataset).shuffle(1000).batch(args.train_batch_size)
 
+    logger.info("Initialize model")
     bert_config = models.BertConfig.from_json(args.config)
+    logger.info("Model Config")
+    for key, val in vars(bert_config).items():
+        logger.info(f" - {key}: {val}")
     model = models.BertForClassification(bert_config, len(label_to_index))
 
     assert bert_config.vocab_size == len(vocab), "Actual vocab size and that in bert config are different."
 
+    logger.info("Load Model Weights")
+    build_bert_model_graph(model, bert_config)
+    utils.load_bert_weights(args.model, model.bert)
+
+    logger.info("Initialize Optimizer, Loss function, and Metrics")
     optimizer = tfa.optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
     criterion = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
@@ -87,10 +119,12 @@ if __name__ == "__main__":
         train_accuracy(targets, preds)
         train_mcc(tf.expand_dims(targets, 1), tf.expand_dims(tf.argmax(preds, -1), 1))
 
+    logger.info("Start Training")
     for epoch_index in range(args.epoch):
+        logger.info(f"Epoch {epoch_index}")
         for step, (targets, input_ids, token_type_ids, attention_mask) in enumerate(train_dataset):
             train_step(input_ids, token_type_ids, attention_mask, targets)
 
-            print(
+            logger.info(
                 f"step: {step+ 1}, loss: {train_loss.result()}, acc: {train_accuracy.result()}, MCC: {train_mcc.result()}"
             )
