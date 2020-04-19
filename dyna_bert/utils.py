@@ -1,9 +1,9 @@
 from argparse import ArgumentParser
-from .models.transformer import ConcatenatedSelfAttention, MultiHeadSelfAttention
 
 import tensorflow as tf
 
 from .models.bert import BertModel
+from .models.transformer import ConcatenatedSelfAttention, MultiHeadSelfAttention
 
 
 def get_default_bert_argument_parser():
