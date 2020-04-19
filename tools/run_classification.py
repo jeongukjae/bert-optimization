@@ -37,6 +37,10 @@ def convert_single_sentence(
     return (labels, input_ids, token_type_ids, attention_mask)
 
 
+def get_total_batches(dataset_size, batch_size):
+    return dataset_size // batch_size + bool(dataset_size % batch_size)
+
+
 @tf.function
 def build_bert_model_graph(bert_model: models.BertForClassification, bert_config: models.BertConfig):
     token_ids = tf.constant([[1] * bert_config.max_position_embeddings])
@@ -77,13 +81,17 @@ if __name__ == "__main__":
     label_to_index = cola_processor.get_label_to_index()
     train_dataset = cola_processor.get_train(args.dataset)
     dev_dataset = cola_processor.get_dev(args.dataset)
-    # test_dataset = cola_processor.get_test(args.dataset)
 
     train_dataset = convert_single_sentence(train_dataset, label_to_index, tokenizer, args.max_sequence_length)
     dev_dataset = convert_single_sentence(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
-    # test_dataset = convert_single_sentence(test_dataset, label_to_index, tokenizer, args.max_sequence_length)
+
+    logger.info(f"Train Dataset Size: {len(train_dataset[0])}")
+    logger.info(f"Dev Dataset Size: {len(dev_dataset[0])}")
+    logger.info(f"Train Batches: {get_total_batches(len(train_dataset[0]), args.train_batch_size)}")
+    logger.info(f"Dev Batches: {get_total_batches(len(dev_dataset[0]), args.eval_batch_size)}")
 
     train_dataset = tf.data.Dataset.from_tensor_slices(train_dataset).shuffle(1000).batch(args.train_batch_size)
+    dev_dataset = tf.data.Dataset.from_tensor_slices(dev_dataset).batch(args.eval_batch_size)
 
     logger.info("Initialize model")
     bert_config = models.BertConfig.from_json(args.config)
@@ -96,7 +104,7 @@ if __name__ == "__main__":
 
     logger.info("Load Model Weights")
     build_bert_model_graph(model, bert_config)
-    utils.load_bert_weights(args.model, model.bert)
+    utils.load_bert_weights(args.model, model.bert, bert_config.use_splitted)
 
     logger.info("Initialize Optimizer, Loss function, and Metrics")
     optimizer = tfa.optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
@@ -105,6 +113,10 @@ if __name__ == "__main__":
     train_loss = tf.keras.metrics.Mean(name="train_loss")
     train_mcc = tfa.metrics.MatthewsCorrelationCoefficient(name="train_mcc", num_classes=1)
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
+
+    eval_loss = tf.keras.metrics.Mean(name="eval_loss")
+    eval_mcc = tfa.metrics.MatthewsCorrelationCoefficient(name="eval_mcc", num_classes=1)
+    eval_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="eval_accuracy")
 
     @tf.function
     def train_step(input_ids, token_type_ids, attention_mask, targets):
@@ -115,9 +127,18 @@ if __name__ == "__main__":
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-        train_loss(loss)
-        train_accuracy(targets, preds)
-        train_mcc(tf.expand_dims(targets, 1), tf.expand_dims(tf.argmax(preds, -1), 1))
+        train_loss.update_state(loss)
+        train_accuracy.update_state(targets, preds)
+        train_mcc.update_state(tf.expand_dims(targets, 1), tf.expand_dims(tf.argmax(preds, -1), 1))
+
+    @tf.function
+    def eval_step(input_ids, token_type_ids, attention_mask, targets):
+        preds, _ = model(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        loss = criterion(targets, preds)
+
+        eval_loss.update_state(loss)
+        eval_accuracy.update_state(targets, preds)
+        eval_mcc.update_state(tf.expand_dims(targets, 1), tf.expand_dims(tf.argmax(preds, -1), 1))
 
     logger.info("Start Training")
     for epoch_index in range(args.epoch):
@@ -125,6 +146,30 @@ if __name__ == "__main__":
         for step, (targets, input_ids, token_type_ids, attention_mask) in enumerate(train_dataset):
             train_step(input_ids, token_type_ids, attention_mask, targets)
 
-            logger.info(
-                f"step: {step+ 1}, loss: {train_loss.result()}, acc: {train_accuracy.result()}, MCC: {train_mcc.result()}"
-            )
+            if (step + 1) % args.log_interval == 0:
+                logger.info(
+                    f"step: {step+ 1}, loss: {train_loss.result()}, acc: {train_accuracy.result()}, MCC: {train_mcc.result()}"
+                )
+                train_loss.reset_states()
+                train_accuracy.reset_states()
+                train_mcc.reset_states()
+
+            if (step + 1) % args.val_interval == 0:
+                eval_loss.reset_states()
+                eval_accuracy.reset_states()
+                eval_mcc.reset_states()
+
+                for targets, input_ids, token_type_ids, attention_mask in dev_dataset:
+                    eval_step(input_ids, token_type_ids, attention_mask, targets)
+
+                logger.info(
+                    f"Eval] loss: {eval_loss.result()}, acc: {eval_accuracy.result()}, MCC: {eval_mcc.result()}"
+                )
+
+        eval_loss.reset_states()
+        eval_accuracy.reset_states()
+        eval_mcc.reset_states()
+        for targets, input_ids, token_type_ids, attention_mask in dev_dataset:
+            eval_step(input_ids, token_type_ids, attention_mask, targets)
+
+        logger.info(f"Eval] loss: {eval_loss.result()}, acc: {eval_accuracy.result()}, MCC: {eval_mcc.result()}")
