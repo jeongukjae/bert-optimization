@@ -120,6 +120,8 @@ if __name__ == "__main__":
     train_loss = tf.keras.metrics.Mean(name="train_loss")
     eval_loss = tf.keras.metrics.Mean(name="eval_loss")
 
+    best_model_score = 0.0
+
     @tf.function
     def train_step(input_ids, token_type_ids, attention_mask, targets):
         with tf.GradientTape() as tape:
@@ -140,7 +142,7 @@ if __name__ == "__main__":
         eval_loss.update_state(loss)
         dataset_processor.update_state(targets, preds, validation=True)
 
-    def eval_dev():
+    def eval_dev(best_model_score):
         eval_loss.reset_states()
         dataset_processor.reset_states(validation=True)
 
@@ -153,6 +155,15 @@ if __name__ == "__main__":
             f"loss: {eval_loss.result()}, "
             + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
+
+        if dataset_processor.get_key() > best_model_score:
+            logger.info("Reached Best Score.")
+            model_path = f"{args.output}/checkpoints/model-{args.task}-{dataset_processor.get_hash()}-epoch{epoch_index}-step{global_step.numpy()}"
+            model.save_weights(model_path)
+            logger.info(f"Saved model in {model_path}")
+            best_model_score = dataset_processor.get_key()
+
+        return best_model_score
 
     logger.info("Start Training")
     for epoch_index in range(args.epoch):
@@ -170,11 +181,7 @@ if __name__ == "__main__":
                 dataset_processor.reset_states()
 
             if (step + 1) % args.val_interval == 0:
-                eval_dev()
-                model.save_weights(
-                    f"{args.output}/checkpoints/model-{args.task}-{dataset_processor.get_hash()}-"
-                    f"epoch{epoch_index}-step{global_step.numpy()}"
-                )
+                best_model_score = eval_dev(best_model_score)
 
             global_step.assign_add(1.0)
 
@@ -185,4 +192,4 @@ if __name__ == "__main__":
         )
         train_loss.reset_states()
         dataset_processor.reset_states()
-        eval_dev()
+        best_model_score = eval_dev(best_model_score)

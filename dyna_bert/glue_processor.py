@@ -51,6 +51,10 @@ class GLUEClassificationProcessor(ABC):
     def get_hash(self):
         raise NotImplementedError
 
+    @abstractmethod
+    def get_key(self):
+        raise NotImplementedError
+
 
 class CoLAProcessor(GLUEClassificationProcessor):
     def __init__(self):
@@ -96,6 +100,9 @@ class CoLAProcessor(GLUEClassificationProcessor):
 
     def get_hash(self):
         return f"{self.val_mcc.result()[0]:.4f}-{self.val_acc.result():.4f}"
+
+    def get_key(self):
+        return self.val_mcc.result()[0]
 
     @staticmethod
     def parse_cola_dataset(lines: List[List[str]], is_test: bool) -> Tuple[Optional[List[str]], List[str]]:
