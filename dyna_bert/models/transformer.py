@@ -27,7 +27,6 @@ class TransformerEncoder(tf.keras.layers.Layer):
 
         self.intermediate = tf.keras.layers.Dense(intermediate_size)
         self.intermediate_act = _get_activation_function(activation)
-        self.intermediate_dropout = tf.keras.layers.Dropout(dropout)
 
         self.output_dense = tf.keras.layers.Dense(hidden_size)
         self.output_dropout = tf.keras.layers.Dropout(dropout)
@@ -39,7 +38,7 @@ class TransformerEncoder(tf.keras.layers.Layer):
         )
         sequence = self.attention_norm(sequence + sequence1)
 
-        sequence1 = self.intermediate_dropout(self.intermediate_act(self.intermediate(sequence)), training=training)
+        sequence1 = self.intermediate_act(self.intermediate(sequence))
         sequence1 = self.output_dropout(self.output_dense(sequence1), training=training)
         sequence = self.output_norm(sequence + sequence1)
 

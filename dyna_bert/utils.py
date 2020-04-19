@@ -20,7 +20,8 @@ def get_default_bert_argument_parser():
 
     parser.add_argument("--epoch", type=int, default=3, help="num epoch")
     parser.add_argument("--learning-rate", type=float, default=5e-5, help="initial learing rate")
-    parser.add_argument("--weight-decay", type=float, default=0, help="weight decay of adamW")
+    parser.add_argument("--weight-decay", type=float, default=0.01, help="weight decay of AdamW")
+    parser.add_argument("--warmup_ratio", type=float, default=0.1, help="ratio of warmup data")
     parser.add_argument("--do-lower-case", action="store_true", help="whether to do lower case")
     parser.add_argument("--max-sequence-length", type=int, default=128, help="max sequence length of input")
     parser.add_argument("--eval-batch-size", type=int, default=128, help="batch size for eval")
