@@ -1,15 +1,13 @@
-import sys
 import logging
 import os
-from typing import Tuple, Optional, List, Dict
+import sys
+from typing import Dict, List, Optional, Tuple
 
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-from dyna_bert import models
-from dyna_bert import glue_processor
-from dyna_bert import tokenizer
-from dyna_bert import utils
+from dyna_bert import glue_processor, models, tokenizer, utils
+from dyna_bert.optimimzer.scheduler import BertScheduler
 
 TASKS = ["cola"]
 PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor}
@@ -78,20 +76,21 @@ if __name__ == "__main__":
     tokenizer = tokenizer.SubWordTokenizer(vocab, args.do_lower_case)
 
     logger.info("Processing Data")
-    cola_processor = PROCESSOR_BY_TASK[args.task.lower()]()
-    label_to_index = cola_processor.get_label_to_index()
-    train_dataset = cola_processor.get_train(args.dataset)
-    dev_dataset = cola_processor.get_dev(args.dataset)
+    dataset_processor = PROCESSOR_BY_TASK[args.task.lower()]()
+    label_to_index = dataset_processor.get_label_to_index()
+    train_dataset = dataset_processor.get_train(args.dataset)
+    dev_dataset = dataset_processor.get_dev(args.dataset)
 
     train_dataset = convert_single_sentence(train_dataset, label_to_index, tokenizer, args.max_sequence_length)
     dev_dataset = convert_single_sentence(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
 
     logger.info(f"Train Dataset Size: {len(train_dataset[0])}")
     logger.info(f"Dev Dataset Size: {len(dev_dataset[0])}")
-    logger.info(f"Train Batches: {get_total_batches(len(train_dataset[0]), args.train_batch_size)}")
+    train_batch_size = get_total_batches(len(train_dataset[0]), args.train_batch_size)
+    logger.info(f"Train Batches: {train_batch_size}")
     logger.info(f"Dev Batches: {get_total_batches(len(dev_dataset[0]), args.eval_batch_size)}")
 
-    train_dataset = tf.data.Dataset.from_tensor_slices(train_dataset).shuffle(1000).batch(args.train_batch_size)
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_dataset).shuffle(10000).batch(args.train_batch_size)
     dev_dataset = tf.data.Dataset.from_tensor_slices(dev_dataset).batch(args.eval_batch_size)
 
     logger.info("Initialize model")
@@ -108,7 +107,14 @@ if __name__ == "__main__":
     utils.load_bert_weights(args.model, model.bert, bert_config.use_splitted)
 
     logger.info("Initialize Optimizer and Loss function")
-    optimizer = tfa.optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
+    global_step = tf.Variable(0.0, trainable=False)
+    scheduler = BertScheduler(args.warmup_ratio, train_batch_size * args.epoch)
+    learning_rate = lambda: args.learning_rate * scheduler(global_step)
+    weight_decay = lambda: args.weight_decay * args.learning_rate * scheduler(global_step)
+    optimizer = tfa.optimizers.AdamW(learning_rate=learning_rate, weight_decay=weight_decay, epsilon=1e-06)
+
+    excludes = ["layer_norm", "LayerNorm", "bias"]
+    decay_var_list = [v for v in model.trainable_variables if all(term not in v.name for term in excludes)]
     criterion = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
     train_loss = tf.keras.metrics.Mean(name="train_loss")
@@ -121,10 +127,10 @@ if __name__ == "__main__":
             loss = criterion(targets, preds)
 
         gradients = tape.gradient(loss, model.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables), decay_var_list=decay_var_list)
 
         train_loss.update_state(loss)
-        cola_processor.update_state(targets, preds)
+        dataset_processor.update_state(targets, preds)
 
     @tf.function
     def eval_step(input_ids, token_type_ids, attention_mask, targets):
@@ -132,20 +138,20 @@ if __name__ == "__main__":
         loss = criterion(targets, preds)
 
         eval_loss.update_state(loss)
-        cola_processor.update_state(targets, preds, validation=True)
+        dataset_processor.update_state(targets, preds, validation=True)
 
     def eval_dev():
         eval_loss.reset_states()
-        cola_processor.reset_states(validation=True)
+        dataset_processor.reset_states(validation=True)
 
         for targets, input_ids, token_type_ids, attention_mask in dev_dataset:
             eval_step(input_ids, token_type_ids, attention_mask, targets)
 
         logger.info(
-            f"Eval] Epoch {epoch_index} "
+            f"[Eval] Epoch {epoch_index} "
             f"step: {step + 1} "
             f"loss: {eval_loss.result()}, "
-            + f", ".join([f"{key}: {val}" for key, val in cola_processor.get_metrics(validation=True).items()])
+            + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
 
     logger.info("Start Training")
@@ -158,12 +164,25 @@ if __name__ == "__main__":
                     f"Epoch {epoch_index} "
                     f"step: {step + 1}, "
                     f"loss: {train_loss.result()}, "
-                    + f", ".join([f"{key}: {val}" for key, val in cola_processor.get_metrics().items()])
+                    + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
                 )
                 train_loss.reset_states()
-                cola_processor.reset_states()
+                dataset_processor.reset_states()
 
             if (step + 1) % args.val_interval == 0:
                 eval_dev()
+                model.save_weights(
+                    f"{args.output}/checkpoints/model-{args.task}-{dataset_processor.get_hash()}-"
+                    f"epoch{epoch_index}-step{global_step.numpy()}"
+                )
 
+            global_step.assign_add(1.0)
+
+        logger.info(
+            f"Epoch {epoch_index} "
+            f"loss: {train_loss.result()}, "
+            + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
+        )
+        train_loss.reset_states()
+        dataset_processor.reset_states()
         eval_dev()
