@@ -108,9 +108,9 @@ class BertModel(tf.keras.layers.Layer):
         self.output_hidden_states = config.output_hidden_states
         self.output_embedding = config.output_embedding
 
-    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=False):
+    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=None):
         seq_length = tf.shape(input_ids)[1]
-        position_ids = tf.range(0, seq_length, 1, dtype=tf.dtypes.int32)
+        position_ids = tf.range(tf.constant(0), seq_length, tf.constant(1), dtype=tf.dtypes.int32)
 
         words_embeddings = self.token_embeddings(input_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
@@ -121,11 +121,11 @@ class BertModel(tf.keras.layers.Layer):
         embeddings = self.embedding_dropout(embeddings, training=training)
 
         hidden_state = embeddings
-        hidden_states = []
+        hidden_states = tuple()
         for encoder in self.encoders:
             hidden_state = encoder(hidden_state, mask=attention_mask, head_mask=head_mask, training=training)
             if self.output_hidden_states:
-                hidden_states.append(hidden_state)
+                hidden_states += (hidden_state,)
 
         sequence_output = hidden_state
         pooled_output = tf.nn.tanh(self.pooler_layer(sequence_output[:, 0]))
@@ -212,7 +212,7 @@ class BertForClassification(tf.keras.Model):
         self.bert = BertModel(bert_config)
         self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
 
-    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=False):
+    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=None):
         bert_output = self.bert(
             input_ids,
             token_type_ids=token_type_ids,

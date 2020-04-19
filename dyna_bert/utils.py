@@ -29,7 +29,6 @@ def get_default_bert_argument_parser():
 
     parser.add_argument("--log-interval", type=int, default=5, help="interval to log")
     parser.add_argument("--val-interval", type=int, default=50, help="interval to validate model")
-    parser.add_argument("--save-interval", type=int, default=50, help="interval to save model")
 
     return parser
 

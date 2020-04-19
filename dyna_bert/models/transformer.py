@@ -33,7 +33,7 @@ class TransformerEncoder(tf.keras.layers.Layer):
         self.output_dropout = tf.keras.layers.Dropout(dropout)
         self.output_norm = tf.keras.layers.LayerNormalization()
 
-    def call(self, sequence, mask, head_mask=None, training=False):
+    def call(self, sequence, mask, head_mask=None, training=None):
         sequence1 = self.attention_dropout(
             self.attention(sequence, mask=mask, head_mask=head_mask, training=training), training=training
         )
@@ -67,12 +67,12 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.output_dense = tf.keras.layers.Dense(hidden_size)
 
-        self.scaling_factor = (hidden_size / num_heads) ** 0.5
+        self.scaling_factor = (hidden_size / num_heads) ** -0.5
         self.head_dims = int(hidden_size / num_heads)
         self.hidden_size = hidden_size
         self.num_heads = num_heads
 
-    def call(self, qkv, mask, training=False, head_mask=None):
+    def call(self, qkv, mask, head_mask=None, training=None):
         sequence_length = tf.shape(qkv)[1]
 
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
@@ -116,9 +116,9 @@ class SelfAttention(tf.keras.layers.Layer):
 
         self.qkv_projection = tf.keras.layers.Dense(hidden_size * 3)
         self.dropout = tf.keras.layers.Dropout(dropout)
-        self.scaling_factor = hidden_size ** 0.5
+        self.scaling_factor = hidden_size ** -0.5
 
-    def call(self, qkv, mask, training=False):
+    def call(self, qkv, mask, training=None):
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
         query *= self.scaling_factor
 
@@ -152,7 +152,7 @@ class ConcatenatedSelfAttention(tf.keras.layers.Layer):
 
         self.num_heads = num_heads
 
-    def call(self, qkv, mask, head_mask=None, training=False):
+    def call(self, qkv, mask, head_mask=None, training=None):
         head_output = tf.concat([head(qkv, mask=mask, training=training) for head in self.heads], axis=-1)
         attn_output = self.output_dense(head_output)
 

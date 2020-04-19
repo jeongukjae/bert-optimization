@@ -72,7 +72,7 @@ def test_rewire_transformer_encoder(
     batch_size: int, seq_len: int, num_heads: int, hidden_size: int, intermediate_size: int, rank: List[int]
 ):
     """Check output is the same before and after rewire_transformer_encoder"""
-    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu")
+    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu", use_splitted=True)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[False] * seq_len] * batch_size)
