@@ -12,6 +12,7 @@ from dyna_bert import tokenizer
 from dyna_bert import utils
 
 TASKS = ["cola"]
+PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor}
 
 
 def convert_single_sentence(
@@ -77,7 +78,7 @@ if __name__ == "__main__":
     tokenizer = tokenizer.SubWordTokenizer(vocab, args.do_lower_case)
 
     logger.info("Processing Data")
-    cola_processor = glue_processor.CoLAProcessor()
+    cola_processor = PROCESSOR_BY_TASK[args.task.lower()]()
     label_to_index = cola_processor.get_label_to_index()
     train_dataset = cola_processor.get_train(args.dataset)
     dev_dataset = cola_processor.get_dev(args.dataset)
