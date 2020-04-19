@@ -39,6 +39,7 @@ class BertConfig:
         type_vocab_size: int = 2,
         output_hidden_states: bool = True,
         output_embedding: bool = True,
+        use_splitted: bool = False,
         **kwargs,  # unused
     ):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
@@ -53,6 +54,7 @@ class BertConfig:
         self.vocab_size = vocab_size
         self.output_hidden_states = output_hidden_states
         self.output_embedding = output_embedding
+        self.use_splitted = use_splitted
 
     @staticmethod
     def from_json(path: str) -> "BertConfig":
@@ -96,6 +98,7 @@ class BertModel(tf.keras.layers.Layer):
                 config.intermediate_size,
                 config.attention_probs_dropout_prob,
                 config.hidden_act,
+                config.use_splitted,
             )
             for _ in range(config.num_hidden_layers)
         ]

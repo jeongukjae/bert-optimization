@@ -15,10 +15,13 @@ class TransformerEncoder(tf.keras.layers.Layer):
         encoder_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads, hidden_size, intermediate_size, dropout, activation):
+    def __init__(self, num_heads, hidden_size, intermediate_size, dropout, activation, use_splitted=False):
         super().__init__()
 
-        self.attention = ConcatenatedSelfAttention(num_heads, hidden_size, dropout=dropout)
+        if use_splitted:
+            self.attention = ConcatenatedSelfAttention(num_heads, hidden_size, dropout=dropout)
+        else:
+            self.attention = MultiHeadSelfAttention(num_heads, hidden_size, dropout=dropout)
         self.attention_dropout = tf.keras.layers.Dropout(dropout)
         self.attention_norm = tf.keras.layers.LayerNormalization()
 
@@ -69,7 +72,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         self.hidden_size = hidden_size
         self.num_heads = num_heads
 
-    def call(self, qkv, mask, training=False):
+    def call(self, qkv, mask, training=False, head_mask=None):
         sequence_length = tf.shape(qkv)[1]
 
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)

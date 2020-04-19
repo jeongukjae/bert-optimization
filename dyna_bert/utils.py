@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from .models.transformer import ConcatenatedSelfAttention
+from .models.transformer import ConcatenatedSelfAttention, MultiHeadSelfAttention
 
 import tensorflow as tf
 
@@ -27,14 +27,14 @@ def get_default_bert_argument_parser():
     parser.add_argument("--train-batch-size", type=int, default=32, help="batch size for training")
     parser.add_argument("--warmup-rate", type=float, default=0.1, help="rate of trainig data to use for warm up")
 
-    parser.add_argument("--log-interval", type=int, default=50, help="interval to log")
-    parser.add_argument("--val-interval", type=int, default=1000, help="interval to validate model")
-    parser.add_argument("--save-interval", type=int, default=1000, help="interval to save model")
+    parser.add_argument("--log-interval", type=int, default=5, help="interval to log")
+    parser.add_argument("--val-interval", type=int, default=50, help="interval to validate model")
+    parser.add_argument("--save-interval", type=int, default=50, help="interval to save model")
 
     return parser
 
 
-def load_bert_weights(checkpoint_path: str, model: BertModel):
+def load_bert_weights(checkpoint_path: str, model: BertModel, use_splitted: bool):
     checkpoint = tf.train.load_checkpoint(checkpoint_path)
 
     load_embedding_weights(checkpoint, model.token_embeddings, "bert/embeddings/word_embeddings")
@@ -45,7 +45,11 @@ def load_bert_weights(checkpoint_path: str, model: BertModel):
     for layer_index, encoder in enumerate(model.encoders):
         encoder_prefix = f"bert/encoder/layer_{layer_index}"
 
-        load_concatenated_attention_weights(checkpoint, encoder.attention, f"{encoder_prefix}/attention")
+        if use_splitted:
+            load_concatenated_attention_weights(checkpoint, encoder.attention, f"{encoder_prefix}/attention")
+        else:
+            load_multohead_attention_weights(checkpoint, encoder.attention, f"{encoder_prefix}/attention")
+
         load_layer_norm_weights(checkpoint, encoder.attention_norm, f"{encoder_prefix}/attention/output/LayerNorm")
 
         load_layer_norm_weights(checkpoint, encoder.output_norm, f"{encoder_prefix}/output/LayerNorm")
@@ -93,4 +97,23 @@ def load_concatenated_attention_weights(checkpoint, layer: ConcatenatedSelfAtten
 
         head.set_weights([kernel, bias])
 
+    load_dense_weights(checkpoint, layer.output_dense, f"{prefix}/output/dense")
+
+
+def load_multohead_attention_weights(checkpoint, layer: MultiHeadSelfAttention, prefix: str):
+    query_kernel = checkpoint.get_tensor(f"{prefix}/self/query/kernel")
+    query_bias = checkpoint.get_tensor(f"{prefix}/self/query/bias")
+
+    key_kernel = checkpoint.get_tensor(f"{prefix}/self/key/kernel")
+    key_bias = checkpoint.get_tensor(f"{prefix}/self/key/bias")
+
+    value_kernel = checkpoint.get_tensor(f"{prefix}/self/value/kernel")
+    value_bias = checkpoint.get_tensor(f"{prefix}/self/value/bias")
+
+    layer.qkv_projection.set_weights(
+        [
+            tf.concat([query_kernel, key_kernel, value_kernel], axis=1),
+            tf.concat([query_bias, key_bias, value_bias], axis=0),
+        ]
+    )
     load_dense_weights(checkpoint, layer.output_dense, f"{prefix}/output/dense")
