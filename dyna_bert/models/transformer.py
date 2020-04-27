@@ -33,9 +33,8 @@ class TransformerEncoder(tf.keras.layers.Layer):
         self.output_norm = tf.keras.layers.LayerNormalization()
 
     def call(self, sequence, mask, head_mask=None, training=None):
-        sequence1 = self.attention_dropout(
-            self.attention(sequence, mask=mask, head_mask=head_mask, training=training), training=training
-        )
+        sequence1 = self.attention(sequence, mask=mask, head_mask=head_mask, training=training)
+        sequence1 = self.attention_dropout(sequence1, training=training)
         sequence = self.attention_norm(sequence + sequence1)
 
         sequence1 = self.intermediate_act(self.intermediate(sequence))
@@ -88,7 +87,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
 
         # batch size, num heads, sequence length, sequence length
         scores = tf.matmul(query, key, transpose_b=True)
-        scores = tf.where(tf.expand_dims(tf.expand_dims(mask, 1), 1), tf.constant(float("-inf")), scores)
+        scores += (1.0 - mask)[:, tf.newaxis, tf.newaxis, :] * -1e4
         distributions = self.dropout(tf.nn.softmax(scores, -1), training=training)
 
         # batch size, sequence length, num heads, head dims
@@ -122,7 +121,7 @@ class SelfAttention(tf.keras.layers.Layer):
         query *= self.scaling_factor
 
         scores = tf.matmul(query, key, transpose_b=True)
-        scores = tf.where(tf.expand_dims(mask, 1), tf.constant(float("-inf")), scores)
+        scores += (1.0 - mask)[:, tf.newaxis, :] * -1e4
         distributions = self.dropout(tf.nn.softmax(scores, -1), training=training)
 
         return tf.matmul(distributions, value)
@@ -158,7 +157,7 @@ class ConcatenatedSelfAttention(tf.keras.layers.Layer):
         if head_mask is not None:
             attn_output_shape = tf.shape(attn_output)
             attn_output = tf.reshape(attn_output, (attn_output_shape[0], attn_output_shape[1], self.num_heads, -1))
-            attn_output *= tf.expand_dims(tf.expand_dims(head_mask, 1), -1)
+            attn_output *= head_mask[:, tf.newaxis, :, tf.newaxis]
             attn_output = tf.reshape(attn_output, attn_output_shape)
         return attn_output
 

@@ -21,7 +21,7 @@ def test_rewire_mha(batch_size: int, seq_len: int, num_heads: int, hidden_size: 
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     attention_output_before = attention(sequence, mask=attention_mask)
 
@@ -48,7 +48,7 @@ def test_rewire_ffn(
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu")
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     encoder_output_before = encoder(sequence, attention_mask)
 
@@ -75,7 +75,7 @@ def test_rewire_transformer_encoder(
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu", use_splitted=True)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     encoder_output_before = encoder(sequence, mask=attention_mask)
 

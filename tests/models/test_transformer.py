@@ -20,7 +20,7 @@ def test_shape_of_transformer_encoder_output(
     encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, activation)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     encoder_output = encoder(sequence, mask=attention_mask)
 
@@ -42,7 +42,7 @@ def test_shape_of_multihead_self_attention_output(batch_size: int, seq_len: int,
     attention = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     attention_output = attention(sequence, mask=attention_mask)
 
@@ -67,7 +67,7 @@ def test_shape_of_self_attention_output(batch_size: int, seq_len: int, input_siz
     attention = SelfAttention(hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     attention_output = attention(sequence, mask=attention_mask)
 
@@ -82,7 +82,7 @@ def test_shape_of_concatenated_self_attention_output(batch_size: int, seq_len: i
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     attention_output = attention(sequence, mask=attention_mask)
 
@@ -99,7 +99,7 @@ def test_shape_of_concatenated_self_attention_output_with_head_mask(batch_size: 
     attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
     # Masking two heads
     head_mask = tf.constant([[1.0, 1.0, 0.0, 0.0]] * batch_size)
 
@@ -123,7 +123,7 @@ def test_output_of_concatenated_attention_and_multi_head_self_attention(
     attention_concat = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
-    attention_mask = tf.constant([[False] * seq_len] * batch_size)
+    attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
 
     # Build TF Graphs
     multi_output = attention_multihead(sequence, mask=attention_mask)
