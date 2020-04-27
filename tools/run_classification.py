@@ -1,39 +1,16 @@
 import logging
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
 
 import tensorflow as tf
 import tensorflow_addons as tfa
 
 from dyna_bert import glue_processor, models, tokenizer, utils
+from dyna_bert.glue_processor import convert_sentence_pair, convert_single_sentence
 from dyna_bert.optimimzer.scheduler import BertScheduler
 
-TASKS = ["cola"]
-PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor}
-
-
-def convert_single_sentence(
-    data: Tuple[Optional[List[str]], List[str]],
-    label_to_index: Dict[str, int],
-    tokenizer: tokenizer.SubWordTokenizer,
-    max_length: int,
-):
-    labels = [0] * len(data[1]) if data[0] is None else [label_to_index[label] for label in data[0]]
-    input_ids = []
-    attention_mask = []
-    token_type_ids = []
-
-    for example in data[1]:
-        tokens = tokenizer.tokenize(example)[: max_length - 2]
-        ids = tokenizer.convert_tokens_to_ids(["[CLS]"] + tokens + ["[SEP]"])
-        padding_size = max_length - len(ids)
-
-        input_ids.append(ids + [0] * padding_size)
-        token_type_ids.append([0] * max_length)
-        attention_mask.append([False] * len(ids) + [True] * padding_size)
-
-    return (labels, input_ids, token_type_ids, attention_mask)
+TASKS = {"cola", "mrpc"}
+PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor, "mrpc": glue_processor.MRPCProcessor}
 
 
 def get_total_batches(dataset_size, batch_size):
@@ -44,7 +21,7 @@ def get_total_batches(dataset_size, batch_size):
 def build_bert_model_graph(bert_model: models.BertForClassification, bert_config: models.BertConfig):
     token_ids = tf.keras.Input((None,), dtype=tf.int32)
     token_type_ids = tf.keras.Input((None,), dtype=tf.int32)
-    attention_mask = tf.keras.Input((None,), dtype=tf.bool)
+    attention_mask = tf.keras.Input((None,), dtype=tf.float32)
 
     bert_model(token_ids, token_type_ids, attention_mask, training=True)
 
@@ -81,8 +58,14 @@ if __name__ == "__main__":
     train_dataset = dataset_processor.get_train(args.dataset)
     dev_dataset = dataset_processor.get_dev(args.dataset)
 
-    train_dataset = convert_single_sentence(train_dataset, label_to_index, tokenizer, args.max_sequence_length)
-    dev_dataset = convert_single_sentence(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
+    if len(train_dataset) == 2:
+        # single sentence dataset
+        train_dataset = convert_single_sentence(train_dataset, label_to_index, tokenizer, args.max_sequence_length)
+        dev_dataset = convert_single_sentence(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
+    else:
+        # sentence pair dataset
+        train_dataset = convert_sentence_pair(train_dataset, label_to_index, tokenizer, args.max_sequence_length)
+        dev_dataset = convert_sentence_pair(dev_dataset, label_to_index, tokenizer, args.max_sequence_length)
 
     logger.info(f"Train Dataset Size: {len(train_dataset[0])}")
     logger.info(f"Dev Dataset Size: {len(dev_dataset[0])}")
@@ -158,7 +141,7 @@ if __name__ == "__main__":
 
         if dataset_processor.get_key() > best_model_score:
             logger.info("Reached Best Score.")
-            model_path = f"{args.output}/checkpoints/model-{args.task}-{dataset_processor.get_hash()}-epoch{epoch_index}-step{global_step.numpy()}"
+            model_path = f"{args.output}/checkpoints/model-{args.task}-{dataset_processor.get_hash()}-epoch{epoch_index}-step{int(global_step.numpy()) + 1}"
             model.save_weights(model_path)
             logger.info(f"Saved model in {model_path}")
             best_model_score = dataset_processor.get_key()
