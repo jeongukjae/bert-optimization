@@ -4,7 +4,7 @@
 
 Test repository to optimize BERT
 
-## Hyper Parameters
+## Fine Tuning
 
 ### CoLA
 

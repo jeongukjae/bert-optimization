@@ -108,7 +108,10 @@ class BertModel(tf.keras.layers.Layer):
         self.output_hidden_states = config.output_hidden_states
         self.output_embedding = config.output_embedding
 
-    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=None):
+    def call(self, input_tensors, head_mask=None, training=None):
+        assert len(input_tensors) == 3
+        input_ids, token_type_ids, attention_mask = input_tensors
+
         seq_length = tf.shape(input_ids)[1]
         position_ids = tf.range(tf.constant(0), seq_length, tf.constant(1), dtype=tf.dtypes.int32)
 
@@ -212,14 +215,8 @@ class BertForClassification(tf.keras.Model):
         self.bert = BertModel(bert_config)
         self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
 
-    def call(self, input_ids, token_type_ids, attention_mask, head_mask=None, training=None):
-        bert_output = self.bert(
-            input_ids,
-            token_type_ids=token_type_ids,
-            attention_mask=attention_mask,
-            head_mask=head_mask,
-            training=training,
-        )
+    def call(self, input_tensors, head_mask=None, training=None):
+        bert_output = self.bert(input_tensors, head_mask=head_mask, training=training,)
         logits = self.classifier(bert_output[1])
 
         return logits, bert_output

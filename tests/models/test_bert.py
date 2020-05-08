@@ -22,7 +22,7 @@ def test_shapes_of_bert_model_outputs(bert_config: BertConfig, batch_size: int, 
     token_type_ids = tf.random.uniform((batch_size, seq_len), maxval=bert_config.type_vocab_size)
     attention_mask = tf.cast(tf.random.uniform((batch_size, seq_len), maxval=2), tf.dtypes.float32)
 
-    outputs = bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+    outputs = bert([input_ids, token_type_ids, attention_mask])
 
     assert len(outputs) == 4
     assert outputs[0].shape == (batch_size, seq_len, bert_config.hidden_size)  # sequence output

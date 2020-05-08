@@ -23,7 +23,7 @@ def build_bert_model_graph(bert_model: models.BertForClassification, bert_config
     token_type_ids = tf.keras.Input((None,), dtype=tf.int32)
     attention_mask = tf.keras.Input((None,), dtype=tf.float32)
 
-    bert_model(token_ids, token_type_ids, attention_mask, training=True)
+    bert_model([token_ids, token_type_ids, attention_mask], training=True)
 
 
 if __name__ == "__main__":
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     @tf.function
     def train_step(input_ids, token_type_ids, attention_mask, targets):
         with tf.GradientTape() as tape:
-            preds, _ = model(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask, training=True)
+            preds, _ = model([input_ids, token_type_ids, attention_mask], training=True)
             loss = criterion(targets, preds)
 
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     @tf.function
     def eval_step(input_ids, token_type_ids, attention_mask, targets):
-        preds, _ = model(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        preds, _ = model([input_ids, token_type_ids, attention_mask])
         loss = criterion(targets, preds)
 
         eval_loss.update_state(loss)
