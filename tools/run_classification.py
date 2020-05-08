@@ -133,7 +133,7 @@ if __name__ == "__main__":
             eval_step(input_ids, token_type_ids, attention_mask, targets)
 
         logger.info(
-            f"[Eval] Epoch {epoch_index} "
+            f"[Eval] Epoch {epoch_index + 1} "
             f"step: {step + 1} "
             f"loss: {eval_loss.result()}, "
             + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
             if (step + 1) % args.log_interval == 0:
                 logger.info(
-                    f"Epoch {epoch_index} "
+                    f"Epoch {epoch_index + 1} "
                     f"step: {step + 1}, "
                     f"loss: {train_loss.result()}, "
                     + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
@@ -169,7 +169,7 @@ if __name__ == "__main__":
             global_step.assign_add(1.0)
 
         logger.info(
-            f"Epoch {epoch_index} "
+            f"Epoch {epoch_index + 1} "
             f"loss: {train_loss.result()}, "
             + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
         )

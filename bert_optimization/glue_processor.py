@@ -119,7 +119,12 @@ class CoLAProcessor(GLUEClassificationProcessor):
 class MRPCProcessor(GLUEClassificationProcessor):
     def __init__(self):
         self.acc = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.recall = tf.keras.metrics.Recall()
+        self.precision = tf.keras.metrics.Precision()
+
         self.val_acc = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.val_recall = tf.keras.metrics.Recall()
+        self.val_precision = tf.keras.metrics.Precision()
 
     def get_train(self, path: str):
         return self.parse_mrpc_dataset(read_table(os.path.join(path, "train.tsv")), False)
@@ -135,21 +140,36 @@ class MRPCProcessor(GLUEClassificationProcessor):
 
     @tf.function
     def update_state(self, targets, preds, validation=False):
+        maxed_preds = tf.math.argmax(preds, -1)
         if validation:
             self.val_acc.update_state(targets, preds)
+            self.val_recall.update_state(targets, maxed_preds)
+            self.val_precision.update_state(targets, maxed_preds)
         else:
             self.acc.update_state(targets, preds)
+            self.recall.update_state(targets, maxed_preds)
+            self.precision.update_state(targets, maxed_preds)
 
     def get_metrics(self, validation=False):
         if validation:
-            return {"Acc": self.val_acc.result()}
-        return {"Acc": self.acc.result()}
+            return {
+                "Acc": self.val_acc.result(),
+                "F1": 2 / (self.val_recall.result() ** -1 + self.val_precision.result() ** -1),
+            }
+        return {
+            "Acc": self.acc.result(),
+            "F1": 2 / (self.recall.result() ** -1 + self.precision.result() ** -1),
+        }
 
     def reset_states(self, validation=False):
         if validation:
             self.val_acc.reset_states()
+            self.val_recall.reset_states()
+            self.val_precision.reset_states()
         else:
             self.acc.reset_states()
+            self.recall.reset_states()
+            self.precision.reset_states()
 
     def get_hash(self):
         return f"{self.val_acc.result():.4f}"
