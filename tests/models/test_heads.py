@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from dyna_bert.models.heads import ClassificationHead
+from bert_optimization.models.heads import ClassificationHead
 
 
 @pytest.mark.parametrize("batch_size, hidden_size, num_class", [pytest.param(1, 3, 12), pytest.param(3, 12, 4)])

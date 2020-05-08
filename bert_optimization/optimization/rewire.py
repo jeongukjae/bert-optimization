@@ -7,7 +7,7 @@ from typing import List
 
 import tensorflow as tf
 
-from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
+from bert_optimization.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
 
 
 def rewire_transformer_encoder(encoder: TransformerEncoder, rank: List[int]):

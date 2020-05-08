@@ -1,4 +1,4 @@
-import dyna_bert.tokenizer as T
+import bert_optimization.tokenizer as T
 
 
 def test_load_vocab(tmpdir):

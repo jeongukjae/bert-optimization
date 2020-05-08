@@ -1,8 +1,8 @@
-# dyna-bert
+# bert-optimization
 
-[![Build Status](https://travis-ci.com/jeongukjae/dyna-bert.svg?token=X4pmexPsjsp1VVpi2aVt&branch=master)](https://travis-ci.com/jeongukjae/dyna-bert)
+[![Build Status](https://travis-ci.com/jeongukjae/bert_optimization.svg?token=X4pmexPsjsp1VVpi2aVt&branch=master)](https://travis-ci.com/jeongukjae/bert_optimization)
 
-An implementation of DynaBERT
+Test repository to optimize BERT
 
 ## Hyper Parameters
 

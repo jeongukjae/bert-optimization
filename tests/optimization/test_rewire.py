@@ -3,8 +3,8 @@ from typing import List
 import pytest
 import tensorflow as tf
 
-from dyna_bert.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
-from dyna_bert.optimization.rewire import rewire_ffn, rewire_mha, rewire_transformer_encoder
+from bert_optimization.models.transformer import ConcatenatedSelfAttention, TransformerEncoder
+from bert_optimization.optimization.rewire import rewire_ffn, rewire_mha, rewire_transformer_encoder
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from dyna_bert.models.transformer import (
+from bert_optimization.models.transformer import (
     ConcatenatedSelfAttention,
     MultiHeadSelfAttention,
     SelfAttention,

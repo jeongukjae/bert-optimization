@@ -1,6 +1,6 @@
 import pytest
 
-from dyna_bert import glue_processor as P
+from bert_optimization import glue_processor as P
 
 
 def test_read_table_csv(tmpdir):

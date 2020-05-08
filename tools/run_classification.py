@@ -5,9 +5,9 @@ import sys
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-from dyna_bert import glue_processor, models, tokenizer, utils
-from dyna_bert.glue_processor import convert_sentence_pair, convert_single_sentence
-from dyna_bert.optimizer.scheduler import BertScheduler
+from bert_optimization import glue_processor, models, tokenizer, utils
+from bert_optimization.glue_processor import convert_sentence_pair, convert_single_sentence
+from bert_optimization.optimizer.scheduler import BertScheduler
 
 TASKS = {"cola", "mrpc"}
 PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor, "mrpc": glue_processor.MRPCProcessor}

@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from dyna_bert.models.bert import BertConfig, BertMLMHead, BertModel, BertNSPHead
+from bert_optimization.models.bert import BertConfig, BertMLMHead, BertModel, BertNSPHead
 
 
 @pytest.fixture
