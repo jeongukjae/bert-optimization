@@ -1,6 +1,6 @@
 # bert-optimization
 
-[![Build Status](https://travis-ci.com/jeongukjae/bert_optimization.svg?token=X4pmexPsjsp1VVpi2aVt&branch=master)](https://travis-ci.com/jeongukjae/bert_optimization)
+![Test Python Status](https://github.com/jeongukjae/bert-optimization/workflows/Test%20Python/badge.svg)
 
 Test repository to optimize BERT
 
