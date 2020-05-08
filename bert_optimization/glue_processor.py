@@ -190,6 +190,114 @@ class MRPCProcessor(GLUEClassificationProcessor):
         return [line[0] for line in lines], [line[3] for line in lines], [line[4] for line in lines]
 
 
+class MNLIProcessor(GLUEClassificationProcessor):
+    def __init__(self):
+        self.acc = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.val_acc = tf.keras.metrics.SparseCategoricalAccuracy()
+
+    def get_train(self, path: str):
+        return self.parse_mnli_dataset(read_table(os.path.join(path, "train.tsv")), False)
+
+    def get_dev(self, path: str):
+        return self.parse_mnli_dataset(read_table(os.path.join(path, "dev_matched.tsv")), False)
+
+    def get_test(self, path: str):
+        return self.parse_mnli_dataset(read_table(os.path.join(path, "test_matched.tsv")), True)
+
+    def get_label_to_index(self):
+        return {"contradiction": 0, "entailment": 1, "neutral": 2}
+
+    @tf.function
+    def update_state(self, targets, preds, validation=False):
+        if validation:
+            self.val_acc.update_state(targets, preds)
+        else:
+            self.acc.update_state(targets, preds)
+
+    def get_metrics(self, validation=False):
+        if validation:
+            return {"Acc": self.val_acc.result()}
+        return {"Acc": self.acc.result()}
+
+    def reset_states(self, validation=False):
+        if validation:
+            self.val_acc.reset_states()
+        else:
+            self.acc.reset_states()
+
+    def get_hash(self):
+        return f"{self.val_acc.result():.4f}"
+
+    def get_key(self):
+        return self.val_acc.result()
+
+    @staticmethod
+    def parse_mnli_dataset(lines: List[List[str]], is_test: bool) -> Tuple[Optional[List[str]], List[str], List[str]]:
+        """
+        Parse MNLI Dataset (GLUE)
+        """
+        # dataset files have a header row
+        lines = lines[1:]
+        if is_test:
+            return None, [line[8] for line in lines], [line[9] for line in lines]
+
+        return [line[-1] for line in lines], [line[8] for line in lines], [line[9] for line in lines]
+
+
+class SST2Processor(GLUEClassificationProcessor):
+    def __init__(self):
+        self.acc = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.val_acc = tf.keras.metrics.SparseCategoricalAccuracy()
+
+    def get_train(self, path: str):
+        return self.parse_sst2_dataset(read_table(os.path.join(path, "train.tsv")), False)
+
+    def get_dev(self, path: str):
+        return self.parse_sst2_dataset(read_table(os.path.join(path, "dev.tsv")), False)
+
+    def get_test(self, path: str):
+        return self.parse_sst2_dataset(read_table(os.path.join(path, "test.tsv")), True)
+
+    def get_label_to_index(self):
+        return {"0": 0, "1": 1}
+
+    @tf.function
+    def update_state(self, targets, preds, validation=False):
+        if validation:
+            self.val_acc.update_state(targets, preds)
+        else:
+            self.acc.update_state(targets, preds)
+
+    def get_metrics(self, validation=False):
+        if validation:
+            return {"Acc": self.val_acc.result()}
+        return {"Acc": self.acc.result()}
+
+    def reset_states(self, validation=False):
+        if validation:
+            self.val_acc.reset_states()
+        else:
+            self.acc.reset_states()
+
+    def get_hash(self):
+        return f"{self.val_acc.result():.4f}"
+
+    def get_key(self):
+        return self.val_acc.result()
+
+    @staticmethod
+    def parse_sst2_dataset(lines: List[List[str]], is_test: bool) -> Tuple[Optional[List[str]], List[str]]:
+        """
+        Parse SST-2 Dataset (GLUE)
+        """
+        # dataset files have a header row
+        lines = lines[1:]
+        if is_test:
+            return None, [line[1] for line in lines]
+
+        return [line[1] for line in lines], [line[0] for line in lines]
+
+
 def convert_single_sentence(
     data: Tuple[Optional[List[str]], List[str]],
     label_to_index: Dict[str, int],
@@ -228,7 +336,7 @@ def convert_sentence_pair(
     for example_index in range(len(data[1])):
         tokens_a = tokenizer.tokenize(data[1][example_index])
         tokens_b = tokenizer.tokenize(data[2][example_index])
-        truncate_seq_pair(tokens_a, tokens_b, max_length)
+        truncate_seq_pair(tokens_a, tokens_b, max_length - 3)
 
         ids = tokenizer.convert_tokens_to_ids(["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"])
         padding_size = max_length - len(ids)
@@ -236,6 +344,10 @@ def convert_sentence_pair(
         input_ids.append(ids + [0] * padding_size)
         token_type_ids.append([0] * (len(tokens_a) + 2) + [1] * (len(tokens_b) + 1) + [0] * padding_size)
         attention_mask.append([1.0] * len(ids) + [0.0] * padding_size)
+
+        assert len(input_ids[-1]) == max_length
+        assert len(token_type_ids[-1]) == max_length
+        assert len(attention_mask[-1]) == max_length
 
     return (labels, input_ids, token_type_ids, attention_mask)
 

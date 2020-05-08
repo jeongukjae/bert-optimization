@@ -9,8 +9,12 @@ from bert_optimization import glue_processor, models, tokenizer, utils
 from bert_optimization.glue_processor import convert_sentence_pair, convert_single_sentence
 from bert_optimization.optimizer.scheduler import BertScheduler
 
-TASKS = {"cola", "mrpc"}
-PROCESSOR_BY_TASK = {"cola": glue_processor.CoLAProcessor, "mrpc": glue_processor.MRPCProcessor}
+PROCESSOR_BY_TASK = {
+    "cola": glue_processor.CoLAProcessor,
+    "mrpc": glue_processor.MRPCProcessor,
+    "mnli": glue_processor.MNLIProcessor,
+    "sst-2": glue_processor.SST2Processor,
+}
 
 
 def get_total_batches(dataset_size, batch_size):
@@ -41,7 +45,7 @@ if __name__ == "__main__":
     for key, val in vars(args).items():
         logger.info(f" - {key}: {val}")
 
-    assert args.task.lower() in TASKS, f"Supported Tasks: {', '.join(TASKS)}"
+    assert args.task.lower() in PROCESSOR_BY_TASK, f"Supported Tasks: {', '.join(PROCESSOR_BY_TASK.keys())}"
 
     assert os.path.exists(args.output), f"Output path {args.output} does not exists"
     assert os.path.exists(args.model + ".index"), f"Model path {args.model} does not exists"
