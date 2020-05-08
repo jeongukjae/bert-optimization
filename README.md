@@ -7,6 +7,19 @@ Test repository to optimize BERT
 ## TODO
 
 - [x] implement BERT Model
-- [ ] implement GLUE Fine tuning tasks
+- [ ] implement Fine Tuning Tasks
+  - [x] SST 2
+  - [x] MNLI-m
+  - [ ] MNLI-mm
+  - [x] CoLA
+  - [x] MRPC
+  - [ ] STS-B
+  - [ ] QQP
+  - [ ] RTE
+  - [ ] WNLI
+  - [ ] QNLI
+  - [ ] AX
+  - [ ] SQuAD
 - [ ] Adaptive Inferance
-- [ ] INT8 Quntization
+- [ ] INT8 Quantization
+- [ ] Distillation
