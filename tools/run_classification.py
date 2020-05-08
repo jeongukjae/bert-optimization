@@ -14,6 +14,7 @@ PROCESSOR_BY_TASK = {
     "mrpc": glue_processor.MRPCProcessor,
     "mnli": glue_processor.MNLIProcessor,
     "sst-2": glue_processor.SST2Processor,
+    "rte": glue_processor.RTEProcessor,
 }
 
 

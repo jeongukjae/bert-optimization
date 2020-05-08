@@ -298,6 +298,60 @@ class SST2Processor(GLUEClassificationProcessor):
         return [line[1] for line in lines], [line[0] for line in lines]
 
 
+class RTEProcessor(GLUEClassificationProcessor):
+    def __init__(self):
+        self.acc = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.val_acc = tf.keras.metrics.SparseCategoricalAccuracy()
+
+    def get_train(self, path: str):
+        return self.parse_rte_data(read_table(os.path.join(path, "train.tsv")), False)
+
+    def get_dev(self, path: str):
+        return self.parse_rte_data(read_table(os.path.join(path, "dev.tsv")), False)
+
+    def get_test(self, path: str):
+        return self.parse_rte_data(read_table(os.path.join(path, "test.tsv")), True)
+
+    def get_label_to_index(self):
+        return {"not_entailment": 0, "entailment": 1}
+
+    @tf.function
+    def update_state(self, targets, preds, validation=False):
+        if validation:
+            self.val_acc.update_state(targets, preds)
+        else:
+            self.acc.update_state(targets, preds)
+
+    def get_metrics(self, validation=False):
+        if validation:
+            return {"Acc": self.val_acc.result()}
+        return {"Acc": self.acc.result()}
+
+    def reset_states(self, validation=False):
+        if validation:
+            self.val_acc.reset_states()
+        else:
+            self.acc.reset_states()
+
+    def get_hash(self):
+        return f"{self.val_acc.result():.4f}"
+
+    def get_key(self):
+        return self.val_acc.result()
+
+    @staticmethod
+    def parse_rte_data(lines: List[List[str]], is_test: bool) -> Tuple[Optional[List[str]], List[str], List[str]]:
+        """
+        Parse RTE Dataset (GLUE)
+        """
+        # dataset files have a header row
+        lines = lines[1:]
+        if is_test:
+            return None, [line[1] for line in lines], [line[2] for line in lines]
+
+        return [line[3] for line in lines], [line[1] for line in lines], [line[2] for line in lines]
+
+
 def convert_single_sentence(
     data: Tuple[Optional[List[str]], List[str]],
     label_to_index: Dict[str, int],
