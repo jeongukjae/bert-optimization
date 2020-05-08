@@ -15,7 +15,7 @@ Test repository to optimize BERT
   - [x] MRPC
   - [ ] STS-B
   - [ ] QQP
-  - [ ] RTE
+  - [x] RTE
   - [ ] WNLI
   - [ ] QNLI
   - [ ] AX
