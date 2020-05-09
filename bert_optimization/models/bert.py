@@ -107,6 +107,7 @@ class BertModel(tf.keras.layers.Layer):
 
         self.output_hidden_states = config.output_hidden_states
         self.output_embedding = config.output_embedding
+        self.num_layers = config.num_hidden_layers
 
     def call(self, input_tensors, head_mask=None, training=None):
         assert len(input_tensors) == 3
@@ -124,11 +125,14 @@ class BertModel(tf.keras.layers.Layer):
         embeddings = self.embedding_dropout(embeddings, training=training)
 
         hidden_state = embeddings
-        hidden_states = tuple()
-        for encoder in self.encoders:
-            hidden_state = encoder(hidden_state, mask=attention_mask, head_mask=head_mask, training=training)
+
+        hidden_states = tf.TensorArray(tf.float32, size=self.num_layers)
+        for index in tf.range(self.num_layers):
+            hidden_state = self.encoders[index](
+                hidden_state, mask=attention_mask, head_mask=head_mask, training=training
+            )
             if self.output_hidden_states:
-                hidden_states += (hidden_state,)
+                hidden_states.write(index, hidden_state)
 
         sequence_output = hidden_state
         pooled_output = tf.nn.tanh(self.pooler_layer(sequence_output[:, 0]))
@@ -137,7 +141,7 @@ class BertModel(tf.keras.layers.Layer):
         if self.output_embedding:
             outputs += (embeddings,)
         if self.output_hidden_states:
-            outputs += (hidden_states,)
+            outputs += (hidden_states.stack(),)
 
         return outputs
 
