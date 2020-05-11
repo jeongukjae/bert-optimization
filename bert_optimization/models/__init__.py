@@ -1,4 +1,5 @@
-from .bert import BertConfig, BertForClassification, BertMLMHead, BertModel, BertNSPHead
+from .bert import BertConfig, BertModel
+from .heads import BertForClassification, BertMLMHead, BertNSPHead
 from .transformer import ConcatenatedSelfAttention, MultiHeadSelfAttention, SelfAttention, TransformerEncoder
 
 __all__ = [
