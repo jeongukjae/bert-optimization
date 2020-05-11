@@ -127,7 +127,7 @@ class BertModel(tf.keras.layers.Layer):
         hidden_state = embeddings
 
         hidden_states = tf.TensorArray(tf.float32, size=self.num_layers)
-        for index in tf.range(self.num_layers):
+        for index in range(self.num_layers):
             hidden_state = self.encoders[index](
                 hidden_state, mask=attention_mask, head_mask=head_mask, training=training
             )
