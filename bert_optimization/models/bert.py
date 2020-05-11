@@ -109,7 +109,7 @@ class BertModel(tf.keras.layers.Layer):
         self.output_embedding = config.output_embedding
         self.num_layers = config.num_hidden_layers
 
-    def call(self, input_tensors, head_mask=None, training=None):
+    def call(self, input_tensors, head_mask=None):
         assert len(input_tensors) == 3
         input_ids, token_type_ids, attention_mask = input_tensors
 
@@ -122,15 +122,13 @@ class BertModel(tf.keras.layers.Layer):
 
         embeddings = words_embeddings + position_embeddings + token_type_embeddings
         embeddings = self.embedding_layer_norm(embeddings)
-        embeddings = self.embedding_dropout(embeddings, training=training)
+        embeddings = self.embedding_dropout(embeddings)
 
         hidden_state = embeddings
 
         hidden_states = tf.TensorArray(tf.float32, size=self.num_layers)
         for index in range(self.num_layers):
-            hidden_state = self.encoders[index](
-                hidden_state, mask=attention_mask, head_mask=head_mask, training=training
-            )
+            hidden_state = self.encoders[index](hidden_state, mask=attention_mask, head_mask=head_mask)
             if self.output_hidden_states:
                 hidden_states.write(index, hidden_state)
 
@@ -219,8 +217,8 @@ class BertForClassification(tf.keras.Model):
         self.bert = BertModel(bert_config)
         self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
 
-    def call(self, input_tensors, head_mask=None, training=None):
-        bert_output = self.bert(input_tensors, head_mask=head_mask, training=training,)
+    def call(self, input_tensors, head_mask=None):
+        bert_output = self.bert(input_tensors, head_mask=head_mask)
         logits = self.classifier(bert_output[1])
 
         return logits, bert_output
