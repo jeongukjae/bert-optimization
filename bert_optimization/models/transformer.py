@@ -1,6 +1,9 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
 
+from . import models_utils
+from .quantize.functional import fake_quantize
+
 
 class TransformerEncoder(tf.keras.layers.Layer):
     """
@@ -15,20 +18,33 @@ class TransformerEncoder(tf.keras.layers.Layer):
         encoder_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads, hidden_size, intermediate_size, dropout, activation, use_splitted=False):
+    def __init__(
+        self,
+        num_heads: int,
+        hidden_size: int,
+        intermediate_size: int,
+        dropout: float,
+        activation: str,
+        aware_quantization: bool,
+        use_splitted=False,
+    ):
         super().__init__()
 
         if use_splitted:
-            self.attention = ConcatenatedSelfAttention(num_heads, hidden_size, dropout=dropout)
+            self.attention = ConcatenatedSelfAttention(
+                num_heads, hidden_size, dropout=dropout, aware_quantization=aware_quantization
+            )
         else:
-            self.attention = MultiHeadSelfAttention(num_heads, hidden_size, dropout=dropout)
+            self.attention = MultiHeadSelfAttention(
+                num_heads, hidden_size, dropout=dropout, aware_quantization=aware_quantization
+            )
         self.attention_dropout = tf.keras.layers.Dropout(dropout)
         self.attention_norm = tf.keras.layers.LayerNormalization()
 
-        self.intermediate = tf.keras.layers.Dense(intermediate_size)
+        self.intermediate = models_utils.get_dense(aware_quantization)(intermediate_size)
         self.intermediate_act = _get_activation_function(activation)
 
-        self.output_dense = tf.keras.layers.Dense(hidden_size)
+        self.output_dense = models_utils.get_dense(aware_quantization)(hidden_size)
         self.output_dropout = tf.keras.layers.Dropout(dropout)
         self.output_norm = tf.keras.layers.LayerNormalization()
 
@@ -56,25 +72,32 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads, hidden_size, dropout):
+    def __init__(self, num_heads: int, hidden_size: int, dropout: float, aware_quantization: bool):
         super().__init__()
         if hidden_size % num_heads != 0:
             raise ValueError("Hidden size should be multiple of the # of attention heads")
 
-        self.qkv_projection = tf.keras.layers.Dense(hidden_size * 3)
+        self.qkv_projection = models_utils.get_dense(aware_quantization)(hidden_size * 3)
         self.dropout = tf.keras.layers.Dropout(dropout)
-        self.output_dense = tf.keras.layers.Dense(hidden_size)
+        self.output_dense = models_utils.get_dense(aware_quantization)(hidden_size)
 
         self.scaling_factor = (hidden_size / num_heads) ** -0.5
         self.head_dims = int(hidden_size / num_heads)
         self.hidden_size = hidden_size
         self.num_heads = num_heads
 
+        self.aware_quantization = aware_quantization
+
     def call(self, qkv, mask, head_mask=None):
         sequence_length = tf.shape(qkv)[1]
 
         query, key, value = tf.split(self.qkv_projection(qkv), 3, axis=-1)
         query *= self.scaling_factor
+
+        if self.aware_quantization:
+            query = fake_quantize(query)
+            key = fake_quantize(key)
+            value = fake_quantize(value)
 
         # batch size, num heads, sequence length, head dims
         query = tf.reshape(query, [-1, sequence_length, self.num_heads, self.head_dims])
@@ -109,10 +132,10 @@ class SelfAttention(tf.keras.layers.Layer):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, hidden_size, dropout):
+    def __init__(self, hidden_size: int, dropout: float, aware_quantization: bool):
         super().__init__()
 
-        self.qkv_projection = tf.keras.layers.Dense(hidden_size * 3)
+        self.qkv_projection = models_utils.get_dense(aware_quantization)(hidden_size * 3)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.scaling_factor = hidden_size ** -0.5
 
@@ -140,13 +163,18 @@ class ConcatenatedSelfAttention(tf.keras.layers.Layer):
         attention_output: (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, num_heads, hidden_size, dropout):
+    def __init__(self, num_heads: int, hidden_size: int, dropout: float, aware_quantization: bool):
         super().__init__()
         if hidden_size % num_heads != 0:
             raise ValueError("Hidden size should be multiple of the # of attention heads")
 
-        self.heads = [SelfAttention(int(hidden_size / num_heads), dropout) for _ in range(num_heads)]
-        self.output_dense = tf.keras.layers.Dense(hidden_size)
+        self.heads = [
+            SelfAttention(
+                hidden_size=int(hidden_size / num_heads), dropout=dropout, aware_quantization=aware_quantization
+            )
+            for _ in range(num_heads)
+        ]
+        self.output_dense = models_utils.get_dense(aware_quantization)(hidden_size)
 
         self.num_heads = num_heads
 

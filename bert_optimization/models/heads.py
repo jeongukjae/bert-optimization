@@ -1,7 +1,8 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-from bert_optimization.models.bert import BertConfig, BertModel
+from . import models_utils
+from .bert import BertConfig, BertModel
 
 
 class BertForClassification(tf.keras.Model):
@@ -29,7 +30,9 @@ class BertForClassification(tf.keras.Model):
         super().__init__()
 
         self.bert = BertModel(bert_config)
-        self.classifier = ClassificationHead(num_classes, bert_config.hidden_dropout_prob)
+        self.classifier = ClassificationHead(
+            num_classes, bert_config.aware_quantization, bert_config.hidden_dropout_prob
+        )
 
     def call(self, input_tensors, head_mask=None):
         bert_output = self.bert(input_tensors, head_mask=head_mask)
@@ -49,11 +52,11 @@ class ClassificationHead(tf.keras.layers.Layer):
         logits: (Batch Size, Num Classes)
     """
 
-    def __init__(self, num_classes: int, dropout: float = 0.9):
+    def __init__(self, num_classes: int, aware_quantization: bool, dropout: float = 0.9):
         super().__init__()
 
         self.dropout = tf.keras.layers.Dropout(dropout)
-        self.classification_layer = tf.keras.layers.Dense(num_classes)
+        self.classification_layer = models_utils.get_dense(aware_quantization)(num_classes)
 
     def call(self, x):
         x = self.dropout(x)
