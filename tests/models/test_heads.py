@@ -1,7 +1,6 @@
 import pytest
 import tensorflow as tf
 
-from bert_optimization.models.bert import BertConfig
 from bert_optimization.models.heads import BertMLMHead, BertNSPHead, ClassificationHead
 
 
