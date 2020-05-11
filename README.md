@@ -22,4 +22,6 @@ Test repository to optimize BERT
   - [ ] SQuAD
 - [ ] Adaptive Inferance
 - [ ] INT8 Quantization
+  - [x] Training
+  - [ ] Inference
 - [ ] Distillation
