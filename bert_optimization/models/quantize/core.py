@@ -7,10 +7,10 @@ from .functional import fake_quantize
 
 
 class QuantizationMode(Enum):
+    # TODO: FIXED Quantization
     NONE = 0
     FIXED = 1
     DYNAMIC = 2
-    EMA = 4
 
 
 class QuantizedBase(ABC, tf.keras.layers.Layer):
