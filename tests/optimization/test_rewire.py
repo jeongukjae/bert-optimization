@@ -18,7 +18,7 @@ from bert_optimization.optimization.rewire import rewire_ffn, rewire_mha, rewire
 )
 def test_rewire_mha(batch_size: int, seq_len: int, num_heads: int, hidden_size: int, rank: List[int]):
     """Check output is the same before and after rewire_mha"""
-    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
+    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -45,7 +45,7 @@ def test_rewire_ffn(
     batch_size: int, seq_len: int, num_heads: int, hidden_size: int, intermediate_size: int, rank: List[int]
 ):
     """Check output is the same before and after rewire_ffn"""
-    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu")
+    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu", False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -72,7 +72,7 @@ def test_rewire_transformer_encoder(
     batch_size: int, seq_len: int, num_heads: int, hidden_size: int, intermediate_size: int, rank: List[int]
 ):
     """Check output is the same before and after rewire_transformer_encoder"""
-    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu", use_splitted=True)
+    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, "gelu", False, use_splitted=True)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)

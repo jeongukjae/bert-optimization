@@ -29,7 +29,7 @@ def get_weight_scale_factor(weight: tf.Tensor, num_bits: int) -> float:
     https://arxiv.org/pdf/1910.06188.pdf
     """
     threshold = tf.math.reduce_max(tf.math.abs(weight))
-    return get_max_quant_value(num_bits) / threshold
+    return tf.cast(get_max_quant_value(num_bits), tf.float32) / threshold
 
 
 @tf.function

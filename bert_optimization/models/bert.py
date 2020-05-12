@@ -3,6 +3,7 @@ import json
 import tensorflow as tf
 
 from .transformer import TransformerEncoder
+from . import models_utils
 
 
 class BertConfig:
@@ -85,9 +86,10 @@ class BertModel(tf.keras.layers.Layer):
 
     def __init__(self, config: BertConfig):
         super(BertModel, self).__init__()
-        self.token_embeddings = tf.keras.layers.Embedding(config.vocab_size, config.hidden_size)
-        self.token_type_embeddings = tf.keras.layers.Embedding(config.type_vocab_size, config.hidden_size)
-        self.position_embeddings = tf.keras.layers.Embedding(config.max_position_embeddings, config.hidden_size)
+        embedding_component = models_utils.get_embedding(config.aware_quantization)
+        self.token_embeddings = embedding_component(config.vocab_size, config.hidden_size)
+        self.token_type_embeddings = embedding_component(config.type_vocab_size, config.hidden_size)
+        self.position_embeddings = embedding_component(config.max_position_embeddings, config.hidden_size)
         self.embedding_layer_norm = tf.keras.layers.LayerNormalization()
         self.embedding_dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
 
