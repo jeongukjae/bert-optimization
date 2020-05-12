@@ -58,11 +58,11 @@ class BertConfig:
         self.aware_quantization = aware_quantization
 
     @staticmethod
-    def from_json(path: str) -> "BertConfig":
+    def from_json(path: str, **kwargs) -> "BertConfig":
         with open(path, "r") as f:
             file_content = json.load(f)
 
-        return BertConfig(**file_content)
+        return BertConfig(**file_content, **kwargs)
 
 
 class BertModel(tf.keras.layers.Layer):

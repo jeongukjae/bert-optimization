@@ -83,7 +83,7 @@ if __name__ == "__main__":
     dev_dataset = tf.data.Dataset.from_tensor_slices(dev_dataset).batch(args.eval_batch_size)
 
     logger.info("Initialize model")
-    bert_config = models.BertConfig.from_json(args.config)
+    bert_config = models.BertConfig.from_json(args.config, aware_quantization=args.aware_quantization)
     logger.info("Model Config")
     for key, val in vars(bert_config).items():
         logger.info(f" - {key}: {val}")
