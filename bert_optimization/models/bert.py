@@ -2,8 +2,8 @@ import json
 
 import tensorflow as tf
 
-from .transformer import TransformerEncoder
 from . import models_utils
+from .transformer import TransformerEncoder
 
 
 class BertConfig:

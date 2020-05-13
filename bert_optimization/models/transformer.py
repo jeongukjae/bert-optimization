@@ -1,8 +1,9 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
 
+from bert_optimization.optimization.quantize import fake_quantize
+
 from . import models_utils
-from .quantize.functional import fake_quantize
 
 
 class TransformerEncoder(tf.keras.layers.Layer):

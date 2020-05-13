@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from .quantize.core import QuantizedDense, QuantizedEmbedding
+from .quantized_model import QuantizedDense, QuantizedEmbedding
 
 
 def get_dense(aware_quantization: bool):
