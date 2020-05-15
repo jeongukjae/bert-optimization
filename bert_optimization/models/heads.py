@@ -3,6 +3,7 @@ import tensorflow_addons as tfa
 
 from . import models_utils
 from .bert import BertConfig, BertModel
+from .layer_normalization import LayerNormalization
 
 
 class BertForClassification(tf.keras.Model):
@@ -39,6 +40,42 @@ class BertForClassification(tf.keras.Model):
         logits = self.classifier(bert_output[1])
 
         return logits, bert_output
+
+
+class BertForClassificationToQuant(tf.keras.Model):
+    """
+    Bert Model with Classification Layer to quantize
+
+    Input Shape:
+        input_ids: (Batch Size, Sequence Length)
+        token_type_ids:: (Batch Size, Sequence Length)
+        attention_mask:: (Batch Size, Sequence Length)
+        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
+
+    Output Shape:
+        logits: (Batch Size, Num Classes)
+        bert_output
+            sequence_output: (Batch Size, Sequence Length, Hidden Size)
+            pooled_output: (Batch Size, Hidden Size)
+            embeddings: (Batch Size, Sequence Length, Hidden Size)
+            hidden_states: (Num Layers, Batch Size, Sequence Length, Hidden Size)
+
+    hidden_states is a "num layers"-length list of tensor that has shape of (Batch Size, Sequence Length, Hidden Size)
+    """
+
+    def __init__(self, bert_config: BertConfig, num_classes: int):
+        super().__init__()
+
+        self.bert = BertModel(bert_config)
+        self.classifier = ClassificationHead(
+            num_classes, bert_config.aware_quantization, bert_config.hidden_dropout_prob
+        )
+
+    def call(self, input_tensors, head_mask=None):
+        bert_output = self.bert(input_tensors, head_mask=head_mask)
+        logits = self.classifier(bert_output[1])
+
+        return logits
 
 
 class ClassificationHead(tf.keras.layers.Layer):
@@ -78,7 +115,7 @@ class BertMLMHead(tf.keras.layers.Layer):
         super(BertMLMHead, self).__init__()
 
         self.transform = tf.keras.layers.Dense(hidden_size)
-        self.transform_layer_norm = tf.keras.layers.LayerNormalization()
+        self.transform_layer_norm = LayerNormalization()
 
         self.output_layer = tf.keras.layers.Dense(vocab_size)
 

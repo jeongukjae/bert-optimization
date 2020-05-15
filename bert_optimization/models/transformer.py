@@ -3,6 +3,7 @@ import tensorflow_addons as tfa
 
 from . import models_utils
 from .quantize.functional import fake_quantize
+from .layer_normalization import LayerNormalization
 
 
 class TransformerEncoder(tf.keras.layers.Layer):
@@ -39,14 +40,14 @@ class TransformerEncoder(tf.keras.layers.Layer):
                 num_heads, hidden_size, dropout=dropout, aware_quantization=aware_quantization
             )
         self.attention_dropout = tf.keras.layers.Dropout(dropout)
-        self.attention_norm = tf.keras.layers.LayerNormalization()
+        self.attention_norm = LayerNormalization()
 
         self.intermediate = models_utils.get_dense(aware_quantization)(intermediate_size)
         self.intermediate_act = _get_activation_function(activation)
 
         self.output_dense = models_utils.get_dense(aware_quantization)(hidden_size)
         self.output_dropout = tf.keras.layers.Dropout(dropout)
-        self.output_norm = tf.keras.layers.LayerNormalization()
+        self.output_norm = LayerNormalization()
 
     def call(self, sequence, mask, head_mask=None):
         sequence1 = self.attention(sequence, mask=mask, head_mask=head_mask)
