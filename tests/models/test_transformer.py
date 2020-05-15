@@ -17,7 +17,7 @@ def test_shape_of_transformer_encoder_output(
     batch_size: int, seq_len: int, num_heads: int, hidden_size: int, intermediate_size: int, activation: str
 ):
     """Check shape of TransformerEncoder outputs"""
-    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, activation)
+    encoder = TransformerEncoder(num_heads, hidden_size, intermediate_size, 0.0, activation, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -31,7 +31,7 @@ def test_transformer_encoder_should_raise_with_invalid_activation_function_name(
     """Check exception raised by Transformer Encoder with invalid Activation function name"""
 
     with pytest.raises(ValueError):
-        TransformerEncoder(10, 20, 30, 0.0, "invalid-name")
+        TransformerEncoder(10, 20, 30, 0.0, "invalid-name", False)
 
 
 @pytest.mark.parametrize(
@@ -39,7 +39,7 @@ def test_transformer_encoder_should_raise_with_invalid_activation_function_name(
 )
 def test_shape_of_multihead_self_attention_output(batch_size: int, seq_len: int, num_heads: int, hidden_size: int):
     """Check shape of MultiHeadSelfAttention outputs"""
-    attention = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
+    attention = MultiHeadSelfAttention(num_heads, hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -53,10 +53,10 @@ def test_multihead_attention_should_raise_with_invalid_num_heads():
     """Check exception raised by MultiHead Attention with invalid num heads"""
 
     with pytest.raises(ValueError):
-        MultiHeadSelfAttention(10, 12, 0.0)
+        MultiHeadSelfAttention(10, 12, 0.0, False)
 
     with pytest.raises(ValueError):
-        MultiHeadSelfAttention(10, 25, 0.0)
+        MultiHeadSelfAttention(10, 25, 0.0, False)
 
 
 @pytest.mark.parametrize(
@@ -64,7 +64,7 @@ def test_multihead_attention_should_raise_with_invalid_num_heads():
 )
 def test_shape_of_self_attention_output(batch_size: int, seq_len: int, input_size: int, hidden_size: int):
     """Check shape of SelfAttention outputs"""
-    attention = SelfAttention(hidden_size, 0.0)
+    attention = SelfAttention(hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -79,7 +79,7 @@ def test_shape_of_self_attention_output(batch_size: int, seq_len: int, input_siz
 )
 def test_shape_of_concatenated_self_attention_output(batch_size: int, seq_len: int, num_heads: int, hidden_size: int):
     """Check shape of ConcatenatedSelfAttention outputs"""
-    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
+    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -96,7 +96,7 @@ def test_shape_of_concatenated_self_attention_output_with_head_mask(batch_size: 
     """Check shape of ConcatenatedSelfAttention outputs With Head Mask"""
     num_heads = 4
 
-    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
+    attention = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)
@@ -119,8 +119,8 @@ def test_output_of_concatenated_attention_and_multi_head_self_attention(
     """Check both outputs from concatenated attention and multi head attention are same"""
     assert hidden_size % num_heads == 0
 
-    attention_multihead = MultiHeadSelfAttention(num_heads, hidden_size, 0.0)
-    attention_concat = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0)
+    attention_multihead = MultiHeadSelfAttention(num_heads, hidden_size, 0.0, False)
+    attention_concat = ConcatenatedSelfAttention(num_heads, hidden_size, 0.0, False)
 
     sequence = tf.random.uniform((batch_size, seq_len, hidden_size))
     attention_mask = tf.constant([[1.0] * seq_len] * batch_size)

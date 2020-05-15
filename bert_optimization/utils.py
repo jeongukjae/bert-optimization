@@ -27,6 +27,7 @@ def get_default_bert_argument_parser():
     parser.add_argument("--eval-batch-size", type=int, default=128, help="batch size for eval")
     parser.add_argument("--train-batch-size", type=int, default=32, help="batch size for training")
     parser.add_argument("--warmup-rate", type=float, default=0.1, help="rate of trainig data to use for warm up")
+    parser.add_argument("--aware-quantization", action="store_true", help="do quantization aware training")
 
     parser.add_argument("--log-interval", type=int, default=5, help="interval to log")
     parser.add_argument("--val-interval", type=int, default=50, help="interval to validate model")

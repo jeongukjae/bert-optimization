@@ -3,14 +3,14 @@ from enum import Enum
 
 import tensorflow as tf
 
-from .functional import fake_quantize
+from bert_optimization.optimization.quantize import fake_quantize
 
 
 class QuantizationMode(Enum):
+    # TODO: FIXED Quantization
     NONE = 0
     FIXED = 1
     DYNAMIC = 2
-    EMA = 4
 
 
 class QuantizedBase(ABC, tf.keras.layers.Layer):
