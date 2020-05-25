@@ -8,7 +8,7 @@ from .heads import ClassificationHead
 from .transformer import TransformerEncoder
 
 
-class EarlyExitBertModelForClassification(tf.keras.layers.Layer):
+class EarlyExitBertModelForClassification(tf.keras.Model):
     """
     Base Bert Model: https://arxiv.org/abs/1810.04805
 
@@ -27,7 +27,7 @@ class EarlyExitBertModelForClassification(tf.keras.layers.Layer):
     hidden_states is a "num layers"-length list of tensor that has shape of (Batch Size, Sequence Length, Hidden Size)
     """
 
-    def __init__(self, config: BertConfig, num_classes: int, speed: float):
+    def __init__(self, config: BertConfig, num_classes: int):
         super(EarlyExitBertModelForClassification, self).__init__()
         embedding_component = models_utils.get_embedding(config.aware_quantization)
         self.token_embeddings = embedding_component(config.vocab_size, config.hidden_size)
@@ -55,13 +55,9 @@ class EarlyExitBertModelForClassification(tf.keras.layers.Layer):
         ]
 
         self.pooler_layer = tf.keras.layers.Dense(config.hidden_size)
-
-        self.output_hidden_states = config.output_hidden_states
-        self.output_embedding = config.output_embedding
         self.num_layers = config.num_hidden_layers
-        self.speed = speed
 
-    def call(self, input_tensors, head_mask=None, training=None):
+    def call(self, input_tensors, speed=0.7, head_mask=None, training=None):
         assert len(input_tensors) == 3
         input_ids, token_type_ids, attention_mask = input_tensors
 
@@ -80,30 +76,41 @@ class EarlyExitBertModelForClassification(tf.keras.layers.Layer):
 
         if training is None:
             result = self._calculate_layer_output(0, hidden_state, attention_mask, head_mask)
-            result = tf.while_loop(
-                lambda i, h, b: calculate_uncertainty(b) > self.speed,
-                lambda i, h, b: self._calculate_layer_output(i, h, attention_mask, head_mask),
-                result,
-                parallel_iterations=1,
-            )
+            for index in range(1, self.num_layers):
+                result = tf.cond(
+                    tf.reduce_all(calculate_uncertainty(result[2]) > speed),
+                    lambda: self._calculate_layer_output(index, result[1], attention_mask, head_mask),
+                    lambda: result,
+                )
 
             return result[0], result[2]
 
-        branch_outputs = tf.TensorArray(tf.float32, size=self.num_layers)
+        branch_outputs = tuple()
         for index in range(self.num_layers):
             result = self._calculate_layer_output(index, hidden_state, attention_mask, head_mask)
-            branch_output = result[1]
-            hidden_state = result[2]
+            hidden_state = result[1]
+            branch_output = result[2]
 
-            if self.output_hidden_states:
-                branch_outputs.write(index, branch_output)
+            branch_outputs += (branch_output,)
 
-        return branch_outputs.stack()
+        return branch_outputs
 
-    @tf.function
     def _calculate_layer_output(self, index, hidden_states, attention_mask, head_mask):
+        """
+        Input:
+            * index: layer index
+            * hidden states: output of previous layer
+            * attention mask
+            * head mask
+
+        Output:
+            * index: layer index
+            * hidden states: output of current layer
+            * branch output: output of current layer's branch
+        """
         hidden_states = self.encoders[index](hidden_states, mask=attention_mask, head_mask=head_mask)
         branch_output = tf.nn.tanh(self.pooler_layer(hidden_states[:, 0]))
-        branch_output = self.branches[index](hidden_states)
+        branch_output = self.branches[index](branch_output)
+        branch_output = tf.nn.softmax(branch_output, -1)
 
         return index + 1, hidden_states, branch_output

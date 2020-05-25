@@ -2,9 +2,11 @@ import tensorflow as tf
 
 
 @tf.function
-def calculate_uncertainty(logits: tf.Tensor) -> tf.Tensor:
+def calculate_uncertainty(probs: tf.Tensor, epsilon=1e-10) -> tf.Tensor:
     """
     Input Shape: (batch size, class num)
     Output Shape: (batch size,)
     """
-    return tf.math.reduce_mean(logits * tf.math.log(logits), axis=1)
+    N = tf.shape(probs)[-1]
+    summation = tf.math.reduce_sum(probs * tf.math.log(probs + epsilon), axis=1)
+    return summation / tf.math.log(1.0 / tf.cast(N, tf.float32))
