@@ -116,6 +116,6 @@ if __name__ == "__main__":
         logger.info(f"Average Used Layers: {tf.reduce_mean(layers)}")
 
     logger.info("Start Inference")
-    for i in range(11):
-        logger.info(f"Speed {i * 0.1}")
-        eval_dev(i * 0.1)
+    for i in range(21):
+        logger.info(f"Speed {i * 0.05}")
+        eval_dev(i * 0.05)

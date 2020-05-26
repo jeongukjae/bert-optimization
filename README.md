@@ -20,7 +20,9 @@ Test repository to optimize BERT
   - [ ] QNLI
   - [ ] AX
   - [ ] SQuAD
-- [ ] Adaptive Inferance
+- [x] Adaptive Inferance
+  - [x] Training
+  - [x] Inference
 - [ ] INT8 Quantization
   - [x] Training
   - [ ] Inference

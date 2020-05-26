@@ -141,7 +141,6 @@ if __name__ == "__main__":
 
         logger.info(
             f"[Eval] Epoch {epoch_index + 1} "
-            f"step: {step + 1} "
             f"loss: {eval_loss.result()}, "
             + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
