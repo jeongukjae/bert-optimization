@@ -1,7 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.keras import constraints
-from tensorflow.python.keras import initializers
-from tensorflow.python.keras import regularizers
+from tensorflow.python.keras import constraints, initializers, regularizers
 
 
 class LayerNormalization(tf.keras.layers.Layer):

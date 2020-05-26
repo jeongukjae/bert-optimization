@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from bert_optimization.models.quantize.core import QuantizationMode, QuantizedDense
+from bert_optimization.models.quantized_model import QuantizationMode, QuantizedDense
 
 
 def test_quantized_dense_can_be_called():

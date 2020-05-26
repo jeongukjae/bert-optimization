@@ -38,7 +38,7 @@ def fake_quantize(x: tf.Tensor, num_bits=8):
     return quantize_and_dequantize(x, scale, num_bits)
 
 
-@tf.custom_gradient
+@tf.custom_gradient  # noqa
 def fake_quantize(x, num_bits=8):
     def straight_through_estimator(dy):
         return dy
