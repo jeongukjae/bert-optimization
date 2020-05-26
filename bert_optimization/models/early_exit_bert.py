@@ -75,11 +75,11 @@ class EarlyExitBertModelForClassification(tf.keras.Model):
         hidden_state = embeddings
 
         if training is None:
-            result = self._calculate_layer_output(0, hidden_state, attention_mask, head_mask)
+            result = self._calculate_layer_output(0, hidden_state, attention_mask, speed, head_mask)
             for index in range(1, self.num_layers):
                 result = tf.cond(
-                    tf.reduce_all(calculate_uncertainty(result[2]) > speed),
-                    lambda: self._calculate_layer_output(index, result[1], attention_mask, head_mask),
+                    result[3],
+                    lambda: self._calculate_layer_output(index, result[1], attention_mask, speed, head_mask),
                     lambda: result,
                 )
 
@@ -87,7 +87,7 @@ class EarlyExitBertModelForClassification(tf.keras.Model):
 
         branch_outputs = tuple()
         for index in range(self.num_layers):
-            result = self._calculate_layer_output(index, hidden_state, attention_mask, head_mask)
+            result = self._calculate_layer_output(index, hidden_state, attention_mask, speed, head_mask)
             hidden_state = result[1]
             branch_output = result[2]
 
@@ -95,7 +95,7 @@ class EarlyExitBertModelForClassification(tf.keras.Model):
 
         return branch_outputs
 
-    def _calculate_layer_output(self, index, hidden_states, attention_mask, head_mask):
+    def _calculate_layer_output(self, index, hidden_states, attention_mask, speed, head_mask):
         """
         Input:
             * index: layer index
@@ -113,4 +113,4 @@ class EarlyExitBertModelForClassification(tf.keras.Model):
         branch_output = self.branches[index](branch_output)
         branch_output = tf.nn.softmax(branch_output, -1)
 
-        return index + 1, hidden_states, branch_output
+        return index + 1, hidden_states, branch_output, tf.reduce_all(calculate_uncertainty(branch_output) > speed)

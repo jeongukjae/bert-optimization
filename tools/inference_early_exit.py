@@ -39,7 +39,6 @@ if __name__ == "__main__":
     logger.addHandler(handler)
 
     parser = utils.get_default_bert_argument_parser()
-    parser.add_argument("--speed", type=float, default=0.7)
     args = parser.parse_args()
     args.eval_batch_size = 1
 
@@ -92,8 +91,8 @@ if __name__ == "__main__":
     eval_loss = tf.keras.metrics.Mean(name="eval_loss")
 
     @tf.function
-    def eval_step(input_ids, token_type_ids, attention_mask, targets):
-        preds = model([input_ids, token_type_ids, attention_mask], speed=args.speed)
+    def eval_step(input_ids, token_type_ids, attention_mask, targets, speed):
+        preds = model([input_ids, token_type_ids, attention_mask], speed=speed)
         loss = criterion(targets, preds[1])
 
         eval_loss.update_state(loss)
@@ -101,20 +100,22 @@ if __name__ == "__main__":
 
         return tf.cast(preds[0], tf.float32)
 
-    def eval_dev():
+    def eval_dev(speed: float):
         eval_loss.reset_states()
         dataset_processor.reset_states(validation=True)
 
         layers = []
         for targets, input_ids, token_type_ids, attention_mask in dev_dataset:
-            layers.append(eval_step(input_ids, token_type_ids, attention_mask, targets))
+            layers.append(eval_step(input_ids, token_type_ids, attention_mask, targets, speed))
 
         logger.info(
             f"[Eval] "
             f"loss: {eval_loss.result()}, "
             + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
-        logger.info(tf.reduce_mean(layers))
+        logger.info(f"Average Used Layers: {tf.reduce_mean(layers)}")
 
     logger.info("Start Inference")
-    eval_dev()
+    for i in range(11):
+        logger.info(f"Speed {i * 0.1}")
+        eval_dev(i * 0.1)
