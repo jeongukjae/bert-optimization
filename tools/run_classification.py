@@ -98,9 +98,11 @@ if __name__ == "__main__":
     logger.info("Initialize Optimizer and Loss function")
     global_step = tf.Variable(0.0, trainable=False)
     scheduler = BertScheduler(args.warmup_ratio, train_batch_size * args.epoch)
-    learning_rate = lambda: args.learning_rate * scheduler(global_step)
-    weight_decay = lambda: args.weight_decay * args.learning_rate * scheduler(global_step)
-    optimizer = tfa.optimizers.AdamW(learning_rate=learning_rate, weight_decay=weight_decay, epsilon=1e-06)
+    optimizer = tfa.optimizers.AdamW(
+        learning_rate=lambda: args.learning_rate * scheduler(global_step),
+        weight_decay=lambda: args.weight_decay * args.learning_rate * scheduler(global_step),
+        epsilon=1e-06,
+    )
 
     excludes = ["layer_norm", "LayerNorm", "bias"]
     decay_var_list = [v for v in model.trainable_variables if all(term not in v.name for term in excludes)]
@@ -142,7 +144,7 @@ if __name__ == "__main__":
             f"[Eval] Epoch {epoch_index + 1} "
             f"step: {step + 1} "
             f"loss: {eval_loss.result()}, "
-            + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
+            + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
 
         if dataset_processor.get_key() > best_model_score:
@@ -164,7 +166,7 @@ if __name__ == "__main__":
                     f"Epoch {epoch_index + 1} "
                     f"step: {step + 1}, "
                     f"loss: {train_loss.result()}, "
-                    + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
+                    + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
                 )
                 train_loss.reset_states()
                 dataset_processor.reset_states()
@@ -177,7 +179,7 @@ if __name__ == "__main__":
         logger.info(
             f"Epoch {epoch_index + 1} "
             f"loss: {train_loss.result()}, "
-            + f", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
+            + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics().items()])
         )
         train_loss.reset_states()
         dataset_processor.reset_states()

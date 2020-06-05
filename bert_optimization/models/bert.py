@@ -74,7 +74,7 @@ class BertModel(tf.keras.layers.Layer):
         input_ids: (Batch Size, Sequence Length)
         token_type_ids:: (Batch Size, Sequence Length)
         attention_mask:: (Batch Size, Sequence Length)
-        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
+        head_mask: (Batch Size, Num Layers, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         sequence_output: (Batch Size, Sequence Length, Hidden Size)
@@ -132,7 +132,8 @@ class BertModel(tf.keras.layers.Layer):
 
         hidden_states = tf.TensorArray(tf.float32, size=self.num_layers)
         for index in range(self.num_layers):
-            hidden_state = self.encoders[index](hidden_state, mask=attention_mask, head_mask=head_mask)
+            head_mask_by_encoder = None if head_mask is None else head_mask[:, index, :]
+            hidden_state = self.encoders[index](hidden_state, mask=attention_mask, head_mask=head_mask_by_encoder)
             if self.output_hidden_states:
                 hidden_states.write(index, hidden_state)
 

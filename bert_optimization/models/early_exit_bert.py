@@ -10,13 +10,13 @@ from .transformer import TransformerEncoder
 
 class EarlyExitBertModelForClassification(tf.keras.Model):
     """
-    Base Bert Model: https://arxiv.org/abs/1810.04805
+    Bert Model with Early Exit
 
     Input Shape:
         input_ids: (Batch Size, Sequence Length)
         token_type_ids:: (Batch Size, Sequence Length)
         attention_mask:: (Batch Size, Sequence Length)
-        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
+        head_mask: (Batch Size, Num Layers, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         sequence_output: (Batch Size, Sequence Length, Hidden Size)

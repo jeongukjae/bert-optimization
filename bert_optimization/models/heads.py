@@ -14,7 +14,7 @@ class BertForClassification(tf.keras.Model):
         input_ids: (Batch Size, Sequence Length)
         token_type_ids:: (Batch Size, Sequence Length)
         attention_mask:: (Batch Size, Sequence Length)
-        head_mask: (Batch Size, Num Heads) -> https://arxiv.org/abs/1905.10650
+        head_mask: (Batch Size, Num Layers, Num Heads) -> https://arxiv.org/abs/1905.10650
 
     Output Shape:
         logits: (Batch Size, Num Classes)

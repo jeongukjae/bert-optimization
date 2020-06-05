@@ -21,15 +21,6 @@ def get_total_batches(dataset_size, batch_size):
     return dataset_size // batch_size + bool(dataset_size % batch_size)
 
 
-@tf.function
-def build_bert_model_graph(bert_model: models.EarlyExitBertModelForClassification, bert_config: models.BertConfig):
-    token_ids = tf.keras.Input((None,), dtype=tf.int32)
-    token_type_ids = tf.keras.Input((None,), dtype=tf.int32)
-    attention_mask = tf.keras.Input((None,), dtype=tf.float32)
-
-    bert_model([token_ids, token_type_ids, attention_mask], speed=0.7, training=True)
-
-
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -40,7 +31,6 @@ if __name__ == "__main__":
 
     parser = utils.get_default_bert_argument_parser()
     args = parser.parse_args()
-    args.eval_batch_size = 1
 
     logger.info("Inference Parameters")
     for key, val in vars(args).items():
@@ -75,11 +65,11 @@ if __name__ == "__main__":
     dev_dataset = tf.data.Dataset.from_tensor_slices(dev_dataset).batch(args.eval_batch_size)
 
     logger.info("Initialize model")
-    bert_config = models.BertConfig.from_json(args.config, aware_quantization=args.aware_quantization)
+    bert_config = models.BertConfig.from_json(args.config, use_splitted=True)
     logger.info("Model Config")
     for key, val in vars(bert_config).items():
         logger.info(f" - {key}: {val}")
-    model = models.EarlyExitBertModelForClassification(bert_config, len(label_to_index))
+    model = models.BertForClassification(bert_config, len(label_to_index))
 
     assert bert_config.vocab_size == len(vocab), "Actual vocab size and that in bert config are different."
 
@@ -91,31 +81,42 @@ if __name__ == "__main__":
     eval_loss = tf.keras.metrics.Mean(name="eval_loss")
 
     @tf.function
-    def eval_step(input_ids, token_type_ids, attention_mask, targets, speed):
-        preds = model([input_ids, token_type_ids, attention_mask], speed=speed)
-        loss = criterion(targets, preds[1])
+    def eval_step(input_ids, token_type_ids, attention_mask, targets, head_mask):
+        preds, _ = model([input_ids, token_type_ids, attention_mask], head_mask=head_mask)
+        loss = criterion(targets, preds)
 
         eval_loss.update_state(loss)
-        dataset_processor.update_state(targets, preds[1], validation=True)
+        dataset_processor.update_state(targets, preds, validation=True)
 
-        return tf.cast(preds[0], tf.float32)
-
-    def eval_dev(speed: float):
+    def eval_dev(layer: int, head: int):
         eval_loss.reset_states()
         dataset_processor.reset_states(validation=True)
 
-        layers = []
+        head_mask = tf.constant(
+            [
+                [
+                    [
+                        head_index != head or layer_index != layer
+                        for head_index in range(bert_config.num_attention_heads)
+                    ]
+                    for layer_index in range(bert_config.num_hidden_layers)
+                ]
+            ],
+            dtype=tf.float32,
+        )
+
         for targets, input_ids, token_type_ids, attention_mask in dev_dataset:
-            layers.append(eval_step(input_ids, token_type_ids, attention_mask, targets, speed))
+            eval_step(input_ids, token_type_ids, attention_mask, targets, head_mask)
 
         logger.info(
             f"[Eval] "
-            f"loss: {eval_loss.result()}, "
+            f"masking layer {layer} head {head}, "
+            f"loss: {eval_loss.result():.4f}, "
             + ", ".join([f"{key}: {val}" for key, val in dataset_processor.get_metrics(validation=True).items()])
         )
-        logger.info(f"Average Used Layers: {tf.reduce_mean(layers)}")
 
     logger.info("Start Inference")
-    for i in range(21):
-        logger.info(f"Speed {i * 0.05}")
-        eval_dev(i * 0.05)
+    eval_dev(-1, -1)
+    for layer in range(bert_config.num_hidden_layers):
+        for head in range(bert_config.num_attention_heads):
+            eval_dev(layer, head)
